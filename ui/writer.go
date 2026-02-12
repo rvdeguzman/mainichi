@@ -5,6 +5,7 @@ import (
 	"mainichi/app"
 	"mainichi/core"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -87,6 +88,10 @@ var (
 			Foreground(lipgloss.Color("243"))
 )
 
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+type promptTickMsg time.Time
+
 type WriterModel struct {
 	session          *app.Session
 	textarea         textarea.Model
@@ -97,11 +102,13 @@ type WriterModel struct {
 	paletteCursor    int
 	paletteFiltered  []paletteCommand
 	paletteSearching bool
+	loadingPrompt    bool
+	spinnerFrame     int
 }
 
 func NewWriterModel(session *app.Session) WriterModel {
 	ta := textarea.New()
-	ta.Placeholder = "Begin writing..."
+	ta.Placeholder = "..."
 	ta.SetValue(session.Entry.Body)
 	ta.ShowLineNumbers = false
 	ta.SetWidth(cardWidth - 4)
@@ -116,8 +123,18 @@ func NewWriterModel(session *app.Session) WriterModel {
 	}
 }
 
+func promptTick() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return promptTickMsg(t)
+	})
+}
+
 func (m WriterModel) Init() tea.Cmd {
-	return textarea.Blink
+	cmds := []tea.Cmd{textarea.Blink}
+	if m.loadingPrompt {
+		cmds = append(cmds, promptTick())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -125,6 +142,12 @@ func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, nil
+	case promptTickMsg:
+		if m.loadingPrompt {
+			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+			return m, promptTick()
+		}
 		return m, nil
 	}
 
@@ -316,7 +339,10 @@ func (m WriterModel) viewWriter() string {
 
 	// Prompt (optional)
 	var promptLine string
-	if m.session.Entry.Prompt != "" {
+	if m.loadingPrompt && m.session.Entry.Prompt == "" {
+		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
+		promptLine = promptStyle.Width(cardWidth).Render(frame + " generating prompt…")
+	} else if m.session.Entry.Prompt != "" {
 		promptLine = promptStyle.Width(cardWidth).Render(
 			m.session.Entry.Prompt,
 		)

@@ -39,13 +39,25 @@ func main() {
 	}
 
 	var initialView int
+	var aiPromptAPIKey string
 
 	switch {
 	case cmd == "":
 		session.OpenToday()
 		if cfg.AutoPrompt {
-			if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+			if cfg.PromptSource == "ai" {
+				apiKey := os.Getenv("OPENAI_API_KEY")
+				if apiKey != "" {
+					aiPromptAPIKey = apiKey
+				} else {
+					if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
+						fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+					}
+				}
+			} else {
+				if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+				}
 			}
 		}
 		initialView = ui.ViewWriter
@@ -55,6 +67,16 @@ func main() {
 		if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
 		}
+		initialView = ui.ViewWriter
+
+	case cmd == "ai":
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			fmt.Fprintf(os.Stderr, "error: OPENAI_API_KEY not set\n")
+			os.Exit(1)
+		}
+		session.OpenToday()
+		aiPromptAPIKey = apiKey
 		initialView = ui.ViewWriter
 
 	case cmd == "config":
@@ -77,6 +99,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Commands:\n")
 		fmt.Fprintf(os.Stderr, "  (none)        Open today's entry\n")
 		fmt.Fprintf(os.Stderr, "  prompt        Open today with a writing prompt\n")
+		fmt.Fprintf(os.Stderr, "  ai            Open today with an AI-generated prompt\n")
 		fmt.Fprintf(os.Stderr, "  config        Configure word count minimum\n")
 		fmt.Fprintf(os.Stderr, "  date          Open calendar view\n")
 		fmt.Fprintf(os.Stderr, "  recent        Browse recent entries\n")
@@ -84,7 +107,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	model := ui.NewAppModel(store, session, initialView)
+	model := ui.NewAppModel(store, session, initialView, aiPromptAPIKey)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)

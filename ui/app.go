@@ -25,27 +25,44 @@ type configDoneMsg struct {
 	result ConfigResult
 }
 
-type AppModel struct {
-	store   adapters.Store
-	session *app.Session
-	view    int
-	writer  WriterModel
-	calendar CalendarModel
-	recent  RecentModel
-	config  ConfigModel
-	width   int
-	height  int
+type aiPromptMsg struct {
+	prompt string
+	err    error
 }
 
-func NewAppModel(store adapters.Store, session *app.Session, initialView int) AppModel {
+func fetchAIPrompt(apiKey string) tea.Cmd {
+	return func() tea.Msg {
+		prompt, err := adapters.GeneratePrompt(apiKey)
+		return aiPromptMsg{prompt: prompt, err: err}
+	}
+}
+
+type AppModel struct {
+	store          adapters.Store
+	session        *app.Session
+	view           int
+	writer         WriterModel
+	calendar       CalendarModel
+	recent         RecentModel
+	config         ConfigModel
+	width          int
+	height         int
+	aiPromptAPIKey string
+}
+
+func NewAppModel(store adapters.Store, session *app.Session, initialView int, aiPromptAPIKey string) AppModel {
 	m := AppModel{
-		store:   store,
-		session: session,
-		view:    initialView,
+		store:          store,
+		session:        session,
+		view:           initialView,
+		aiPromptAPIKey: aiPromptAPIKey,
 	}
 	switch initialView {
 	case ViewWriter:
 		m.writer = NewWriterModel(session)
+		if aiPromptAPIKey != "" {
+			m.writer.loadingPrompt = true
+		}
 	case ViewCalendar:
 		m.calendar = NewCalendarModel(session)
 	case ViewRecent:
@@ -59,7 +76,11 @@ func NewAppModel(store adapters.Store, session *app.Session, initialView int) Ap
 func (m AppModel) Init() tea.Cmd {
 	switch m.view {
 	case ViewWriter:
-		return m.writer.Init()
+		cmds := []tea.Cmd{m.writer.Init()}
+		if m.aiPromptAPIKey != "" {
+			cmds = append(cmds, fetchAIPrompt(m.aiPromptAPIKey))
+		}
+		return tea.Batch(cmds...)
 	case ViewCalendar:
 		return m.calendar.Init()
 	case ViewRecent:
@@ -99,6 +120,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.view = ViewWriter
 		m.writer = NewWriterModel(m.session)
 		return m, m.childInit()
+
+	case aiPromptMsg:
+		if msg.err != nil {
+			fmt.Fprintf(os.Stderr, "warning: AI prompt failed: %v\n", msg.err)
+		} else {
+			m.session.Entry.Prompt = msg.prompt
+			m.session.Save()
+		}
+		m.writer.loadingPrompt = false
+		return m, nil
 
 	default:
 		return m.updateChild(msg)
@@ -157,6 +188,10 @@ func (m *AppModel) applyConfig(res ConfigResult) {
 	}
 	if res.AutoPrompt != nil {
 		m.session.Config.AutoPrompt = *res.AutoPrompt
+		changed = true
+	}
+	if res.PromptSource != nil {
+		m.session.Config.PromptSource = *res.PromptSource
 		changed = true
 	}
 	if res.ResetDeck {

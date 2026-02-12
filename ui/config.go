@@ -41,31 +41,35 @@ const (
 	kindMinimumPreset itemKind = iota
 	kindMinimumCustom
 	kindAutoPrompt
+	kindPromptSource
 	kindResetDeck
 )
 
 type configItem struct {
-	kind  itemKind
-	value int // preset value for kindMinimumPreset; bool as 0/1 for kindAutoPrompt
-	label string
+	kind        itemKind
+	value       int // preset value for kindMinimumPreset; bool as 0/1 for kindAutoPrompt
+	label       string
+	stringValue string // for kindPromptSource
 }
 
 type ConfigResult struct {
-	Minimum    *int
-	AutoPrompt *bool
-	ResetDeck  bool
+	Minimum      *int
+	AutoPrompt   *bool
+	PromptSource *string
+	ResetDeck    bool
 }
 
 type ConfigModel struct {
-	items             []configItem
-	cursor            int
-	editing           bool
-	input             textinput.Model
-	result            ConfigResult
-	currentMinimum    int
-	currentAutoPrompt bool
-	width             int
-	height            int
+	items                []configItem
+	cursor               int
+	editing              bool
+	input                textinput.Model
+	result               ConfigResult
+	currentMinimum       int
+	currentAutoPrompt    bool
+	currentPromptSource  string
+	width                int
+	height               int
 }
 
 func NewConfigModel(cfg core.Config) ConfigModel {
@@ -101,15 +105,29 @@ func NewConfigModel(cfg core.Config) ConfigModel {
 		items = append(items, configItem{kind: kindAutoPrompt, value: 1, label: "on"})
 	}
 
+	// Prompt source section
+	promptSource := cfg.PromptSource
+	if promptSource == "" {
+		promptSource = "deck"
+	}
+	if promptSource == "deck" {
+		items = append(items, configItem{kind: kindPromptSource, stringValue: "deck", label: "deck"})
+		items = append(items, configItem{kind: kindPromptSource, stringValue: "ai", label: "ai"})
+	} else {
+		items = append(items, configItem{kind: kindPromptSource, stringValue: "ai", label: "ai"})
+		items = append(items, configItem{kind: kindPromptSource, stringValue: "deck", label: "deck"})
+	}
+
 	// Reset deck section
 	items = append(items, configItem{kind: kindResetDeck, label: "Reset deck"})
 
 	return ConfigModel{
-		items:             items,
-		cursor:            0,
-		input:             ti,
-		currentMinimum:    cfg.Minimum,
-		currentAutoPrompt: cfg.AutoPrompt,
+		items:               items,
+		cursor:              0,
+		input:               ti,
+		currentMinimum:      cfg.Minimum,
+		currentAutoPrompt:   cfg.AutoPrompt,
+		currentPromptSource: promptSource,
 	}
 }
 
@@ -166,6 +184,13 @@ func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			b := item.value == 1
 			if b != m.currentAutoPrompt {
 				m.result.AutoPrompt = &b
+			}
+			res := m.result
+			return m, func() tea.Msg { return configDoneMsg{result: res} }
+		case kindPromptSource:
+			if item.stringValue != m.currentPromptSource {
+				s := item.stringValue
+				m.result.PromptSource = &s
 			}
 			res := m.result
 			return m, func() tea.Msg { return configDoneMsg{result: res} }
@@ -234,6 +259,10 @@ func (m ConfigModel) View() string {
 			lines = append(lines, "") // blank line separator
 			lines = append(lines, cfgSectionStyle.Render("  Auto-prompt"))
 		}
+		if item.kind == kindPromptSource && (i == 0 || m.items[i-1].kind != kindPromptSource) {
+			lines = append(lines, "") // blank line separator
+			lines = append(lines, cfgSectionStyle.Render("  Prompt source"))
+		}
 		if item.kind == kindResetDeck && (i == 0 || m.items[i-1].kind != kindResetDeck) {
 			lines = append(lines, "") // blank line separator
 			lines = append(lines, cfgSectionStyle.Render("  Prompt deck"))
@@ -273,6 +302,10 @@ func (m ConfigModel) renderItem(item configItem, active bool) string {
 
 	case kindAutoPrompt:
 		current := (item.value == 1) == m.currentAutoPrompt
+		return m.renderChoice(item.label, current, active)
+
+	case kindPromptSource:
+		current := item.stringValue == m.currentPromptSource
 		return m.renderChoice(item.label, current, active)
 
 	case kindResetDeck:

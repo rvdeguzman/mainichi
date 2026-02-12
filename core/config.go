@@ -1,12 +1,14 @@
 package core
 
 type Config struct {
-	Minimum    int  `toml:"minimum"`
-	AutoPrompt bool `toml:"auto_prompt"`
+	Minimum      int    `toml:"minimum"`
+	AutoPrompt   bool   `toml:"auto_prompt"`
+	PromptSource string `toml:"prompt_source"`
 }
 
 func DefaultConfig() Config {
 	return Config{
-		Minimum: 300,
+		Minimum:      300,
+		PromptSource: "deck",
 	}
 }
