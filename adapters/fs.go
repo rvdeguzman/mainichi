@@ -68,6 +68,15 @@ func (s Store) LoadConfig() (core.Config, error) {
 	return cfg, nil
 }
 
+func (s Store) SaveConfig(cfg core.Config) error {
+	path := filepath.Join(s.BasePath, "config.toml")
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
 func (s Store) EntryExists(date string) bool {
 	_, err := os.Stat(s.entryPath(date))
 	return err == nil

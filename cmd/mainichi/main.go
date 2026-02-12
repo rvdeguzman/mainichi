@@ -9,6 +9,7 @@ import (
 	mainichi "mainichi"
 	"mainichi/adapters"
 	"mainichi/app"
+	"mainichi/core"
 	"mainichi/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,6 +53,9 @@ func main() {
 		}
 		runWriter(session)
 
+	case cmd == "config":
+		runConfig(store, cfg)
+
 	case cmd == "date":
 		// Open calendar view
 		runCalendar(session)
@@ -66,6 +70,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Commands:\n")
 		fmt.Fprintf(os.Stderr, "  (none)        Open today's entry\n")
 		fmt.Fprintf(os.Stderr, "  prompt        Open today with a writing prompt\n")
+		fmt.Fprintf(os.Stderr, "  config        Configure word count minimum\n")
 		fmt.Fprintf(os.Stderr, "  date          Open calendar view\n")
 		fmt.Fprintf(os.Stderr, "  YYYY-MM-DD    Open a specific date's entry\n")
 		os.Exit(1)
@@ -77,6 +82,24 @@ func runWriter(session *app.Session) {
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func runConfig(store adapters.Store, cfg core.Config) {
+	model := ui.NewConfigModel(cfg)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	m, err := p.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if cm, ok := m.(ui.ConfigModel); ok {
+		if val, saved := cm.Selected(); saved {
+			cfg.Minimum = val
+			if err := store.SaveConfig(cfg); err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 }
 
