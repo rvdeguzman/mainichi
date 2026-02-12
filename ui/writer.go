@@ -93,7 +93,6 @@ type WriterModel struct {
 	width           int
 	height          int
 	mode            int
-	action          string
 	paletteInput    string
 	paletteCursor   int
 	paletteFiltered []paletteCommand
@@ -114,10 +113,6 @@ func NewWriterModel(session *app.Session) WriterModel {
 		textarea:        ta,
 		paletteFiltered: commands,
 	}
-}
-
-func (m WriterModel) Action() string {
-	return m.action
 }
 
 func (m WriterModel) Init() tea.Cmd {
@@ -184,14 +179,27 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if len(m.paletteFiltered) > 0 {
 				selected := m.paletteFiltered[m.paletteCursor]
-				if selected.action == "help" {
+				switch selected.action {
+				case "help":
 					m.mode = modeHelp
 					return m, nil
+				case "quit":
+					m.session.Entry.Body = m.textarea.Value()
+					m.session.Save()
+					return m, tea.Quit
+				case "config":
+					m.session.Entry.Body = m.textarea.Value()
+					m.session.Save()
+					return m, func() tea.Msg { return switchViewMsg{view: ViewConfig} }
+				case "date":
+					m.session.Entry.Body = m.textarea.Value()
+					m.session.Save()
+					return m, func() tea.Msg { return switchViewMsg{view: ViewCalendar} }
+				case "recent":
+					m.session.Entry.Body = m.textarea.Value()
+					m.session.Save()
+					return m, func() tea.Msg { return switchViewMsg{view: ViewRecent} }
 				}
-				m.session.Entry.Body = m.textarea.Value()
-				m.session.Save()
-				m.action = selected.action
-				return m, tea.Quit
 			}
 			return m, nil
 		case "up":

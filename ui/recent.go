@@ -35,12 +35,11 @@ var (
 )
 
 type RecentModel struct {
-	session  *app.Session
-	entries  []app.RecentEntry
-	cursor   int
-	width    int
-	height   int
-	selected string
+	session *app.Session
+	entries []app.RecentEntry
+	cursor  int
+	width   int
+	height  int
 }
 
 func NewRecentModel(session *app.Session) RecentModel {
@@ -49,10 +48,6 @@ func NewRecentModel(session *app.Session) RecentModel {
 		session: session,
 		entries: entries,
 	}
-}
-
-func (m RecentModel) SelectedDate() string {
-	return m.selected
 }
 
 func (m RecentModel) Init() tea.Cmd {
@@ -67,8 +62,10 @@ func (m RecentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c":
 			return m, tea.Quit
+		case "q", "esc":
+			return m, func() tea.Msg { return switchViewMsg{view: ViewWriter} }
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
@@ -79,8 +76,8 @@ func (m RecentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "enter":
 			if len(m.entries) > 0 {
-				m.selected = m.entries[m.cursor].Entry.Date
-				return m, tea.Quit
+				date := m.entries[m.cursor].Entry.Date
+				return m, func() tea.Msg { return switchViewMsg{view: ViewWriter, date: date} }
 			}
 		}
 	}

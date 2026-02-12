@@ -62,7 +62,6 @@ type ConfigModel struct {
 	editing           bool
 	input             textinput.Model
 	result            ConfigResult
-	done              bool
 	currentMinimum    int
 	currentAutoPrompt bool
 	width             int
@@ -118,10 +117,6 @@ func (m ConfigModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m ConfigModel) Result() ConfigResult {
-	return m.result
-}
-
 func (m ConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -140,8 +135,10 @@ func (m ConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c":
 		return m, tea.Quit
+	case "esc":
+		return m, func() tea.Msg { return switchViewMsg{view: ViewWriter} }
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
@@ -158,8 +155,8 @@ func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				v := item.value
 				m.result.Minimum = &v
 			}
-			m.done = true
-			return m, tea.Quit
+			res := m.result
+			return m, func() tea.Msg { return configDoneMsg{result: res} }
 		case kindMinimumCustom:
 			m.editing = true
 			m.input.SetValue("")
@@ -170,12 +167,12 @@ func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if b != m.currentAutoPrompt {
 				m.result.AutoPrompt = &b
 			}
-			m.done = true
-			return m, tea.Quit
+			res := m.result
+			return m, func() tea.Msg { return configDoneMsg{result: res} }
 		case kindResetDeck:
 			m.result.ResetDeck = true
-			m.done = true
-			return m, tea.Quit
+			res := m.result
+			return m, func() tea.Msg { return configDoneMsg{result: res} }
 		}
 	}
 
@@ -196,8 +193,8 @@ func (m ConfigModel) updateEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if val != m.currentMinimum {
 			m.result.Minimum = &val
 		}
-		m.done = true
-		return m, tea.Quit
+		res := m.result
+		return m, func() tea.Msg { return configDoneMsg{result: res} }
 	}
 
 	var cmd tea.Cmd

@@ -35,13 +35,12 @@ var (
 )
 
 type CalendarModel struct {
-	session  *app.Session
-	year     int
-	month    time.Month
-	cursor   int // day of month (1-based)
-	width    int
-	height   int
-	selected string // date string if user pressed enter
+	session *app.Session
+	year    int
+	month   time.Month
+	cursor  int // day of month (1-based)
+	width   int
+	height  int
 }
 
 func NewCalendarModel(session *app.Session) CalendarModel {
@@ -52,11 +51,6 @@ func NewCalendarModel(session *app.Session) CalendarModel {
 		month:   now.Month(),
 		cursor:  now.Day(),
 	}
-}
-
-// SelectedDate returns the date the user chose, or "" if none.
-func (m CalendarModel) SelectedDate() string {
-	return m.selected
 }
 
 func (m CalendarModel) Init() tea.Cmd {
@@ -71,8 +65,10 @@ func (m CalendarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c":
 			return m, tea.Quit
+		case "q", "esc":
+			return m, func() tea.Msg { return switchViewMsg{view: ViewWriter} }
 		case "left", "h":
 			m.cursor--
 			if m.cursor < 1 {
@@ -117,8 +113,8 @@ func (m CalendarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor = max
 			}
 		case "enter":
-			m.selected = fmt.Sprintf("%04d-%02d-%02d", m.year, int(m.month), m.cursor)
-			return m, tea.Quit
+			date := fmt.Sprintf("%04d-%02d-%02d", m.year, int(m.month), m.cursor)
+			return m, func() tea.Msg { return switchViewMsg{view: ViewWriter, date: date} }
 		}
 	}
 
