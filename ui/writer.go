@@ -355,7 +355,11 @@ func (m WriterModel) viewWriter() string {
 
 	// Progress bar
 	wc := core.WordCount(m.textarea.Value())
-	bar := renderBar(wc, m.session.Config.Minimum, cardWidth-4)
+	minimum := m.session.Entry.Minimum
+	if minimum <= 0 {
+		minimum = m.session.Config.Minimum
+	}
+	bar := renderBar(wc, minimum, cardWidth-4)
 
 	// Compose
 	var sections []string

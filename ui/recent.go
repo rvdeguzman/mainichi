@@ -103,8 +103,12 @@ func (m RecentModel) View() string {
 	// Build list
 	var listLines []string
 	for i, re := range m.entries {
+		minimum := re.Entry.Minimum
+		if minimum <= 0 {
+			minimum = m.session.Config.Minimum
+		}
 		marker := "●"
-		if re.WordCount < m.session.Config.Minimum {
+		if re.WordCount < minimum {
 			marker = "◐"
 		}
 

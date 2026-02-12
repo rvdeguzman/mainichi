@@ -170,7 +170,7 @@ func (m CalendarModel) View() string {
 	}
 
 	for day := 1; day <= days; day++ {
-		marker := markerFor(day, entries, m.session.Config.Minimum)
+		marker := markerFor(day, entries)
 		cell := marker
 		if day == m.cursor {
 			cell = calSelectedStyle.Render(marker)
@@ -201,12 +201,12 @@ func (m CalendarModel) View() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
 }
 
-func markerFor(day int, entries map[int]int, minimum int) string {
-	wc, ok := entries[day]
+func markerFor(day int, entries map[int]app.CalendarEntry) string {
+	e, ok := entries[day]
 	if !ok {
 		return "·"
 	}
-	if wc >= minimum {
+	if e.WordCount >= e.Minimum {
 		return "●"
 	}
 	return "◐"

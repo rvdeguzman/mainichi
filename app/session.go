@@ -29,11 +29,16 @@ func (s *Session) OpenDate(date string) {
 			Minimum: s.Config.Minimum,
 		}
 	}
+	if entry.Minimum <= 0 {
+		entry.Minimum = s.Config.Minimum
+	}
 	s.Entry = entry
 }
 
 func (s *Session) Save() error {
-	s.Entry.Minimum = s.Config.Minimum
+	if s.Entry.Minimum <= 0 {
+		s.Entry.Minimum = s.Config.Minimum
+	}
 	return s.Store.SaveEntry(s.Entry)
 }
 
@@ -93,9 +98,14 @@ func (s *Session) ListRecentEntries(limit int) ([]RecentEntry, error) {
 	return result, nil
 }
 
-// ListEntries returns a map of day -> word count for entries in the given month.
-func (s *Session) ListEntries(year int, month time.Month) map[int]int {
-	result := make(map[int]int)
+type CalendarEntry struct {
+	WordCount int
+	Minimum   int
+}
+
+// ListEntries returns a map of day -> calendar entry for entries in the given month.
+func (s *Session) ListEntries(year int, month time.Month) map[int]CalendarEntry {
+	result := make(map[int]CalendarEntry)
 	days := time.Date(year, month+1, 0, 0, 0, 0, 0, time.Local).Day()
 
 	for day := 1; day <= days; day++ {
@@ -104,7 +114,14 @@ func (s *Session) ListEntries(year int, month time.Month) map[int]int {
 		if err != nil {
 			continue
 		}
-		result[day] = core.WordCount(entry.Body)
+		minimum := entry.Minimum
+		if minimum <= 0 {
+			minimum = s.Config.Minimum
+		}
+		result[day] = CalendarEntry{
+			WordCount: core.WordCount(entry.Body),
+			Minimum:   minimum,
+		}
 	}
 	return result
 }
