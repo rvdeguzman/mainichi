@@ -35,12 +35,31 @@ func GeneratePrompt(apiKey string) (string, error) {
 		Model: "gpt-4o-mini",
 		Messages: []chatMessage{
 			{
-				Role:    "system",
-				Content: "You are a creative writing prompt generator. Respond with a single sentence writing prompt. No preamble, no quotes, just the prompt.",
+				Role: "system",
+				Content: strings.TrimSpace(`
+				You generate ONE journaling prompt for a daily stream-of-consciousness writing ritual.
+
+				Output rules:
+				- Output exactly one sentence and nothing else.
+				- No preamble, no labels, no quotes, no markdown, no lists.
+				- 8–18 words.
+				- End with a question mark.
+
+				Style rules:
+				- Calm, introspective, concrete, non-preachy.
+				- No clichés, no motivational tone, no advice, no therapy language.
+				- No “write about…”, “describe…”, “imagine…”, “tell a story…”.
+				- Avoid proper nouns, brands, and pop culture references.
+				- Avoid heavy topics (self-harm, suicide, abuse, violence).
+
+				Prompt quality:
+				- Aim for a gentle steering question that invites honest reflection.
+				- Prefer specifics over abstractions (everyday moments, decisions, avoidance, attention, friction, small truths).
+			`),
 			},
 			{
 				Role:    "user",
-				Content: "Give me a writing prompt.",
+				Content: "Generate today's journaling prompt.",
 			},
 		},
 	}
