@@ -88,14 +88,15 @@ var (
 )
 
 type WriterModel struct {
-	session         *app.Session
-	textarea        textarea.Model
-	width           int
-	height          int
-	mode            int
-	paletteInput    string
-	paletteCursor   int
-	paletteFiltered []paletteCommand
+	session          *app.Session
+	textarea         textarea.Model
+	width            int
+	height           int
+	mode             int
+	paletteInput     string
+	paletteCursor    int
+	paletteFiltered  []paletteCommand
+	paletteSearching bool
 }
 
 func NewWriterModel(session *app.Session) WriterModel {
@@ -173,6 +174,13 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.session.Save()
 			return m, tea.Quit
 		case "esc":
+			if m.paletteSearching {
+				m.paletteSearching = false
+				m.paletteInput = ""
+				m.paletteCursor = 0
+				m.paletteFiltered = commands
+				return m, nil
+			}
 			m.mode = modeNormal
 			m.textarea.Focus()
 			return m, nil
@@ -212,14 +220,40 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.paletteCursor++
 			}
 			return m, nil
-		case "backspace":
-			if len(m.paletteInput) > 0 {
-				m.paletteInput = m.paletteInput[:len(m.paletteInput)-1]
-				m.filterPalette()
+		case "k":
+			if !m.paletteSearching {
+				if m.paletteCursor > 0 {
+					m.paletteCursor--
+				}
+				return m, nil
 			}
-			return m, nil
+			fallthrough
+		case "j":
+			if !m.paletteSearching {
+				if m.paletteCursor < len(m.paletteFiltered)-1 {
+					m.paletteCursor++
+				}
+				return m, nil
+			}
+			fallthrough
+		case "/":
+			if !m.paletteSearching {
+				m.paletteSearching = true
+				return m, nil
+			}
+			// fall through to typing below
+			fallthrough
 		default:
-			// Append printable runes
+			if !m.paletteSearching {
+				return m, nil
+			}
+			if msg.String() == "backspace" {
+				if len(m.paletteInput) > 0 {
+					m.paletteInput = m.paletteInput[:len(m.paletteInput)-1]
+					m.filterPalette()
+				}
+				return m, nil
+			}
 			for _, r := range msg.String() {
 				if unicode.IsPrint(r) {
 					m.paletteInput += string(r)
@@ -312,10 +346,11 @@ func (m WriterModel) viewWriter() string {
 func (m WriterModel) viewPalette() string {
 	var lines []string
 
-	// Input line
-	cursor := "█"
-	inputLine := palPromptStyle.Render("> " + m.paletteInput + cursor)
-	lines = append(lines, inputLine)
+	if m.paletteSearching {
+		cursor := "█"
+		inputLine := palPromptStyle.Render("> " + m.paletteInput + cursor)
+		lines = append(lines, inputLine)
+	}
 
 	// Filtered commands
 	for i, cmd := range m.paletteFiltered {
