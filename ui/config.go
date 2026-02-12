@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var presets = []int{150, 250, 500, 750}
+var presets = []int{150, 250, 300, 500, 750}
 
 var (
 	cfgTitleStyle = lipgloss.NewStyle().
@@ -60,16 +60,16 @@ type ConfigResult struct {
 }
 
 type ConfigModel struct {
-	items                []configItem
-	cursor               int
-	editing              bool
-	input                textinput.Model
-	result               ConfigResult
-	currentMinimum       int
-	currentAutoPrompt    bool
-	currentPromptSource  string
-	width                int
-	height               int
+	items               []configItem
+	cursor              int
+	editing             bool
+	input               textinput.Model
+	result              ConfigResult
+	currentMinimum      int
+	currentAutoPrompt   bool
+	currentPromptSource string
+	width               int
+	height              int
 }
 
 func NewConfigModel(cfg core.Config) ConfigModel {
