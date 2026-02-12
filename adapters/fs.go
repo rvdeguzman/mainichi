@@ -23,6 +23,9 @@ func NewStore(basePath string) Store {
 }
 
 func DefaultStore() (Store, error) {
+	if dir := os.Getenv("MAINICHI_DIR"); dir != "" {
+		return Store{BasePath: dir}, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Store{}, err
