@@ -17,9 +17,8 @@ var (
 			Foreground(lipgloss.Color("241")).
 			Align(lipgloss.Center)
 
-	cfgLabelStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
-			Align(lipgloss.Center)
+	cfgSectionStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243"))
 
 	cfgItemStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245"))
@@ -36,15 +35,38 @@ var (
 			Align(lipgloss.Center)
 )
 
+type itemKind int
+
+const (
+	kindMinimumPreset itemKind = iota
+	kindMinimumCustom
+	kindAutoPrompt
+	kindResetDeck
+)
+
+type configItem struct {
+	kind  itemKind
+	value int  // preset value for kindMinimumPreset; bool as 0/1 for kindAutoPrompt
+	label string
+}
+
+type ConfigResult struct {
+	Minimum    *int
+	AutoPrompt *bool
+	ResetDeck  bool
+}
+
 type ConfigModel struct {
-	current  int // current config value
-	cursor   int // 0..len(presets) where last index = custom
-	editing  bool
-	input    textinput.Model
-	saved    bool
-	selected int // the value chosen, 0 if none
-	width    int
-	height   int
+	items             []configItem
+	cursor            int
+	editing           bool
+	input             textinput.Model
+	result            ConfigResult
+	done              bool
+	currentMinimum    int
+	currentAutoPrompt bool
+	width             int
+	height            int
 }
 
 func NewConfigModel(cfg core.Config) ConfigModel {
@@ -53,19 +75,42 @@ func NewConfigModel(cfg core.Config) ConfigModel {
 	ti.CharLimit = 5
 	ti.Width = 6
 
-	// Find cursor position matching current value
-	cursor := len(presets) // default to custom
-	for i, p := range presets {
+	var items []configItem
+
+	// Word minimum section: current value first, then presets, then custom
+	currentInPresets := false
+	items = append(items, configItem{kind: kindMinimumPreset, value: cfg.Minimum, label: fmt.Sprintf("%d", cfg.Minimum)})
+	for _, p := range presets {
 		if p == cfg.Minimum {
-			cursor = i
-			break
+			currentInPresets = true
+			continue
 		}
+		items = append(items, configItem{kind: kindMinimumPreset, value: p, label: fmt.Sprintf("%d", p)})
+	}
+	if !currentInPresets {
+		// Current value wasn't a preset — it's already first, add all presets
+		// (already done above since we skip nothing)
+	}
+	items = append(items, configItem{kind: kindMinimumCustom, label: "Custom: ___"})
+
+	// Auto-prompt section
+	if cfg.AutoPrompt {
+		items = append(items, configItem{kind: kindAutoPrompt, value: 1, label: "on"})
+		items = append(items, configItem{kind: kindAutoPrompt, value: 0, label: "off"})
+	} else {
+		items = append(items, configItem{kind: kindAutoPrompt, value: 0, label: "off"})
+		items = append(items, configItem{kind: kindAutoPrompt, value: 1, label: "on"})
 	}
 
+	// Reset deck section
+	items = append(items, configItem{kind: kindResetDeck, label: "Reset deck"})
+
 	return ConfigModel{
-		current: cfg.Minimum,
-		cursor:  cursor,
-		input:   ti,
+		items:             items,
+		cursor:            0,
+		input:             ti,
+		currentMinimum:    cfg.Minimum,
+		currentAutoPrompt: cfg.AutoPrompt,
 	}
 }
 
@@ -73,8 +118,8 @@ func (m ConfigModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m ConfigModel) Selected() (int, bool) {
-	return m.selected, m.saved
+func (m ConfigModel) Result() ConfigResult {
+	return m.result
 }
 
 func (m ConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -94,8 +139,6 @@ func (m ConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxIdx := len(presets) // presets + custom
-
 	switch msg.String() {
 	case "ctrl+c", "esc":
 		return m, tea.Quit
@@ -104,20 +147,36 @@ func (m ConfigModel) updateNavigating(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 	case "down", "j":
-		if m.cursor < maxIdx {
+		if m.cursor < len(m.items)-1 {
 			m.cursor++
 		}
 	case "enter":
-		if m.cursor < len(presets) {
-			m.selected = presets[m.cursor]
-			m.saved = true
+		item := m.items[m.cursor]
+		switch item.kind {
+		case kindMinimumPreset:
+			if item.value != m.currentMinimum {
+				v := item.value
+				m.result.Minimum = &v
+			}
+			m.done = true
+			return m, tea.Quit
+		case kindMinimumCustom:
+			m.editing = true
+			m.input.SetValue("")
+			m.input.Focus()
+			return m, textinput.Blink
+		case kindAutoPrompt:
+			b := item.value == 1
+			if b != m.currentAutoPrompt {
+				m.result.AutoPrompt = &b
+			}
+			m.done = true
+			return m, tea.Quit
+		case kindResetDeck:
+			m.result.ResetDeck = true
+			m.done = true
 			return m, tea.Quit
 		}
-		// Enter custom editing mode
-		m.editing = true
-		m.input.SetValue("")
-		m.input.Focus()
-		return m, textinput.Blink
 	}
 
 	return m, nil
@@ -134,8 +193,10 @@ func (m ConfigModel) updateEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if err != nil || val <= 0 {
 			return m, nil
 		}
-		m.selected = val
-		m.saved = true
+		if val != m.currentMinimum {
+			m.result.Minimum = &val
+		}
+		m.done = true
 		return m, tea.Quit
 	}
 
@@ -164,47 +225,79 @@ func (m ConfigModel) View() string {
 	w := cardWidth
 
 	title := cfgTitleStyle.Width(w).Render("mainichi — config")
-	label := cfgLabelStyle.Width(w).Render("Word count minimum:")
 
-	var items []string
-	for i, p := range presets {
-		line := fmt.Sprintf("  %d", p)
-		if p == m.current {
-			line += " (current)"
+	var lines []string
+
+	// Section header: Word minimum
+	lines = append(lines, cfgSectionStyle.Render("  Word minimum"))
+
+	for i, item := range m.items {
+		// Insert section headers at transitions
+		if item.kind == kindAutoPrompt && (i == 0 || m.items[i-1].kind != kindAutoPrompt) {
+			lines = append(lines, "") // blank line separator
+			lines = append(lines, cfgSectionStyle.Render("  Auto-prompt"))
 		}
-		if i == m.cursor {
-			line = fmt.Sprintf("▸ %d", p)
-			if p == m.current {
-				line += " (current)"
-			}
-			items = append(items, cfgActiveStyle.Render(line))
-		} else if p == m.current {
-			items = append(items, cfgCurrentStyle.Render(line))
-		} else {
-			items = append(items, cfgItemStyle.Render(line))
+		if item.kind == kindResetDeck && (i == 0 || m.items[i-1].kind != kindResetDeck) {
+			lines = append(lines, "") // blank line separator
+			lines = append(lines, cfgSectionStyle.Render("  Prompt deck"))
 		}
+
+		active := i == m.cursor
+		line := m.renderItem(item, active)
+		lines = append(lines, line)
 	}
 
-	// Custom option
-	customIdx := len(presets)
-	if m.cursor == customIdx {
-		if m.editing {
-			items = append(items, cfgActiveStyle.Render("▸ Custom: ")+m.input.View())
-		} else {
-			items = append(items, cfgActiveStyle.Render("▸ Custom: ___"))
-		}
-	} else {
-		items = append(items, cfgItemStyle.Render("  Custom: ___"))
-	}
-
-	menu := lipgloss.JoinVertical(lipgloss.Left, items...)
+	menu := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	centeredMenu := lipgloss.NewStyle().Width(w).Align(lipgloss.Center).Render(menu)
 
 	help := cfgHelpStyle.Width(w).Render("↑↓ navigate  enter select  esc cancel")
 
 	block := lipgloss.JoinVertical(lipgloss.Center,
-		title, "", label, "", centeredMenu, "", help,
+		title, "", centeredMenu, "", help,
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
+}
+
+func (m ConfigModel) renderItem(item configItem, active bool) string {
+	switch item.kind {
+	case kindMinimumPreset:
+		current := item.value == m.currentMinimum
+		return m.renderChoice(fmt.Sprintf("%d", item.value), current, active)
+
+	case kindMinimumCustom:
+		if active {
+			if m.editing {
+				return cfgActiveStyle.Render("  ▸ Custom: ") + m.input.View()
+			}
+			return cfgActiveStyle.Render("  ▸ Custom: ___")
+		}
+		return cfgItemStyle.Render("    Custom: ___")
+
+	case kindAutoPrompt:
+		current := (item.value == 1) == m.currentAutoPrompt
+		return m.renderChoice(item.label, current, active)
+
+	case kindResetDeck:
+		if active {
+			return cfgActiveStyle.Render("  ▸ Reset deck")
+		}
+		return cfgItemStyle.Render("    Reset deck")
+	}
+	return ""
+}
+
+func (m ConfigModel) renderChoice(label string, current, active bool) string {
+	suffix := ""
+	if current {
+		suffix = " (current)"
+	}
+
+	if active {
+		return cfgActiveStyle.Render(fmt.Sprintf("  ▸ %s%s", label, suffix))
+	}
+	if current {
+		return cfgCurrentStyle.Render(fmt.Sprintf("    %s%s", label, suffix))
+	}
+	return cfgItemStyle.Render(fmt.Sprintf("    %s", label))
 }

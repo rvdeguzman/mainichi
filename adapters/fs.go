@@ -5,10 +5,14 @@ import (
 	"mainichi/core"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
+
+var entryDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}\.md$`)
 
 type Store struct {
 	BasePath string
@@ -105,6 +109,10 @@ func (s Store) LoadDeckState() (core.Deck, error) {
 	return deck, nil
 }
 
+func (s Store) DeleteDeckState() error {
+	return os.Remove(filepath.Join(s.BasePath, "prompt_state.json"))
+}
+
 func (s Store) SaveDeckState(deck core.Deck) error {
 	path := filepath.Join(s.BasePath, "prompt_state.json")
 	data, err := json.MarshalIndent(deck, "", "  ")
@@ -112,6 +120,32 @@ func (s Store) SaveDeckState(deck core.Deck) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+func (s Store) ListEntryDates(limit int) ([]string, error) {
+	dir := filepath.Join(s.BasePath, "entries")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var dates []string
+	for _, e := range entries {
+		if e.IsDir() || !entryDateRe.MatchString(e.Name()) {
+			continue
+		}
+		dates = append(dates, strings.TrimSuffix(e.Name(), ".md"))
+	}
+
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+
+	if limit > 0 && len(dates) > limit {
+		dates = dates[:limit]
+	}
+	return dates, nil
 }
 
 func (s Store) EnsureDefaultPrompts(defaultPrompts string) error {
