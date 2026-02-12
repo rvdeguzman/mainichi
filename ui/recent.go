@@ -11,12 +11,11 @@ import (
 
 var (
 	recentTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("255")).
+				Foreground(lipgloss.Color("241")).
 				Align(lipgloss.Center)
 
 	recentMutedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241"))
+				Foreground(lipgloss.Color("243"))
 
 	recentActiveStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("255")).
@@ -164,9 +163,9 @@ func (m RecentModel) View() string {
 		content = listBlock
 	}
 
-	help := recentHelpStyle.Render("↑↓ navigate  enter open  q quit")
+	// help := recentHelpStyle.Render("↑↓ navigate  enter open  q quit")
 
-	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "", help)
+	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "")
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
 }
 

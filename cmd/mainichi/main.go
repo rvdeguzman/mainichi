@@ -48,7 +48,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
 			}
 		}
-		runWriter(session)
+		runWriter(store, session)
 
 	case cmd == "prompt":
 		// Open today with a deck prompt
@@ -56,23 +56,29 @@ func main() {
 		if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
 		}
-		runWriter(session)
+		runWriter(store, session)
 
 	case cmd == "config":
 		runConfig(store, cfg)
 
 	case cmd == "date":
-		// Open calendar view
-		runCalendar(session)
+		date := runCalendar(session)
+		if date != "" {
+			session.OpenDate(date)
+			runWriter(store, session)
+		}
 
 	case cmd == "recent":
-		// Open recent entries view
-		runRecent(session)
+		date := runRecent(session)
+		if date != "" {
+			session.OpenDate(date)
+			runWriter(store, session)
+		}
 
 	case dateRe.MatchString(cmd):
 		// Open specific date
 		session.OpenDate(cmd)
-		runWriter(session)
+		runWriter(store, session)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Usage: mainichi [command]\n\n")
@@ -87,11 +93,45 @@ func main() {
 	}
 }
 
-func runWriter(session *app.Session) {
-	model := ui.NewWriterModel(session)
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		log.Fatal(err)
+func runWriter(store adapters.Store, session *app.Session) {
+	for {
+		model := ui.NewWriterModel(session)
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		m, err := p.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		wm, ok := m.(ui.WriterModel)
+		if !ok {
+			return
+		}
+
+		switch wm.Action() {
+		case "config":
+			runConfig(store, session.Config)
+			// Reload config in case it changed
+			cfg, err := store.LoadConfig()
+			if err == nil {
+				session.Config = cfg
+			}
+
+		case "date":
+			date := runCalendar(session)
+			if date != "" {
+				session.OpenDate(date)
+			}
+
+		case "recent":
+			date := runRecent(session)
+			if date != "" {
+				session.OpenDate(date)
+			}
+
+		default:
+			// "" or "quit" — exit
+			return
+		}
 	}
 }
 
@@ -131,7 +171,7 @@ func runConfig(store adapters.Store, cfg core.Config) {
 	}
 }
 
-func runCalendar(session *app.Session) {
+func runCalendar(session *app.Session) string {
 	cal := ui.NewCalendarModel(session)
 	p := tea.NewProgram(cal, tea.WithAltScreen())
 	m, err := p.Run()
@@ -139,14 +179,13 @@ func runCalendar(session *app.Session) {
 		log.Fatal(err)
 	}
 
-	// If user selected a date, open it in the writer
-	if cm, ok := m.(ui.CalendarModel); ok && cm.SelectedDate() != "" {
-		session.OpenDate(cm.SelectedDate())
-		runWriter(session)
+	if cm, ok := m.(ui.CalendarModel); ok {
+		return cm.SelectedDate()
 	}
+	return ""
 }
 
-func runRecent(session *app.Session) {
+func runRecent(session *app.Session) string {
 	recent := ui.NewRecentModel(session)
 	p := tea.NewProgram(recent, tea.WithAltScreen())
 	m, err := p.Run()
@@ -154,8 +193,8 @@ func runRecent(session *app.Session) {
 		log.Fatal(err)
 	}
 
-	if rm, ok := m.(ui.RecentModel); ok && rm.SelectedDate() != "" {
-		session.OpenDate(rm.SelectedDate())
-		runWriter(session)
+	if rm, ok := m.(ui.RecentModel); ok {
+		return rm.SelectedDate()
 	}
+	return ""
 }

@@ -5,6 +5,7 @@ import (
 	"mainichi/app"
 	"mainichi/core"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,6 +13,26 @@ import (
 )
 
 const cardWidth = 70
+
+const (
+	modeNormal = iota
+	modePalette
+	modeHelp
+)
+
+type paletteCommand struct {
+	name   string
+	desc   string
+	action string
+}
+
+var commands = []paletteCommand{
+	{"config", "settings", "config"},
+	{"date", "calendar view", "date"},
+	{"recent", "recent entries", "recent"},
+	{"help", "show keybindings", "help"},
+	{"exit", "save and quit", "quit"},
+}
 
 var (
 	titleStyle = lipgloss.NewStyle().
@@ -33,13 +54,49 @@ var (
 
 	barEmptyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("236"))
+
+	palBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("238")).
+			Width(40).
+			Padding(0, 1)
+
+	palPromptStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
+
+	palActiveStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")).
+			Bold(true)
+
+	palItemStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241"))
+
+	palDescStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("238"))
+
+	helpBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("238")).
+			Padding(1, 2)
+
+	helpTitleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")).
+			Bold(true)
+
+	helpTextStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243"))
 )
 
 type WriterModel struct {
-	session  *app.Session
-	textarea textarea.Model
-	width    int
-	height   int
+	session         *app.Session
+	textarea        textarea.Model
+	width           int
+	height          int
+	mode            int
+	action          string
+	paletteInput    string
+	paletteCursor   int
+	paletteFiltered []paletteCommand
 }
 
 func NewWriterModel(session *app.Session) WriterModel {
@@ -53,9 +110,14 @@ func NewWriterModel(session *app.Session) WriterModel {
 	ta.Focus()
 
 	return WriterModel{
-		session:  session,
-		textarea: ta,
+		session:         session,
+		textarea:        ta,
+		paletteFiltered: commands,
 	}
+}
+
+func (m WriterModel) Action() string {
+	return m.action
 }
 
 func (m WriterModel) Init() tea.Cmd {
@@ -63,13 +125,25 @@ func (m WriterModel) Init() tea.Cmd {
 }
 
 func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, nil
+	}
 
+	switch m.mode {
+	case modePalette:
+		return m.updatePalette(msg)
+	case modeHelp:
+		return m.updateHelp(msg)
+	default:
+		return m.updateNormal(msg)
+	}
+}
+
+func (m WriterModel) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+s":
@@ -80,14 +154,101 @@ func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.session.Entry.Body = m.textarea.Value()
 			m.session.Save()
 			return m, tea.Quit
+		case "esc":
+			m.mode = modePalette
+			m.paletteInput = ""
+			m.paletteCursor = 0
+			m.paletteFiltered = commands
+			m.textarea.Blur()
+			return m, nil
 		}
 	}
 
 	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(msg)
-	cmds = append(cmds, cmd)
+	return m, cmd
+}
 
-	return m, tea.Batch(cmds...)
+func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			m.session.Entry.Body = m.textarea.Value()
+			m.session.Save()
+			return m, tea.Quit
+		case "esc":
+			m.mode = modeNormal
+			m.textarea.Focus()
+			return m, nil
+		case "enter":
+			if len(m.paletteFiltered) > 0 {
+				selected := m.paletteFiltered[m.paletteCursor]
+				if selected.action == "help" {
+					m.mode = modeHelp
+					return m, nil
+				}
+				m.session.Entry.Body = m.textarea.Value()
+				m.session.Save()
+				m.action = selected.action
+				return m, tea.Quit
+			}
+			return m, nil
+		case "up":
+			if m.paletteCursor > 0 {
+				m.paletteCursor--
+			}
+			return m, nil
+		case "down":
+			if m.paletteCursor < len(m.paletteFiltered)-1 {
+				m.paletteCursor++
+			}
+			return m, nil
+		case "backspace":
+			if len(m.paletteInput) > 0 {
+				m.paletteInput = m.paletteInput[:len(m.paletteInput)-1]
+				m.filterPalette()
+			}
+			return m, nil
+		default:
+			// Append printable runes
+			for _, r := range msg.String() {
+				if unicode.IsPrint(r) {
+					m.paletteInput += string(r)
+				}
+			}
+			m.filterPalette()
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+func (m *WriterModel) filterPalette() {
+	input := strings.ToLower(m.paletteInput)
+	var filtered []paletteCommand
+	for _, cmd := range commands {
+		if strings.Contains(strings.ToLower(cmd.name), input) {
+			filtered = append(filtered, cmd)
+		}
+	}
+	m.paletteFiltered = filtered
+	if m.paletteCursor >= len(m.paletteFiltered) {
+		m.paletteCursor = max(0, len(m.paletteFiltered)-1)
+	}
+}
+
+func (m WriterModel) updateHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc", "q":
+			m.mode = modeNormal
+			m.textarea.Focus()
+			return m, nil
+		}
+	}
+	return m, nil
 }
 
 func (m WriterModel) View() string {
@@ -95,6 +256,17 @@ func (m WriterModel) View() string {
 		return ""
 	}
 
+	switch m.mode {
+	case modePalette:
+		return m.viewPalette()
+	case modeHelp:
+		return m.viewHelp()
+	default:
+		return m.viewWriter()
+	}
+}
+
+func (m WriterModel) viewWriter() string {
 	// Title
 	title := titleStyle.Width(cardWidth).Render(
 		fmt.Sprintf("mainichi — %s", m.session.Entry.Date),
@@ -127,6 +299,71 @@ func (m WriterModel) View() string {
 	block := lipgloss.JoinVertical(lipgloss.Center, sections...)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
+}
+
+func (m WriterModel) viewPalette() string {
+	var lines []string
+
+	// Input line
+	cursor := "█"
+	inputLine := palPromptStyle.Render("> " + m.paletteInput + cursor)
+	lines = append(lines, inputLine)
+
+	// Filtered commands
+	for i, cmd := range m.paletteFiltered {
+		name := cmd.name
+		desc := palDescStyle.Render("  " + cmd.desc)
+		if i == m.paletteCursor {
+			line := palActiveStyle.Render("  ▸ "+name) + desc
+			lines = append(lines, line)
+		} else {
+			line := palItemStyle.Render("    "+name) + desc
+			lines = append(lines, line)
+		}
+	}
+
+	content := strings.Join(lines, "\n")
+	box := palBoxStyle.Render(content)
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+}
+
+func (m WriterModel) viewHelp() string {
+	var b strings.Builder
+
+	b.WriteString(helpTitleStyle.Render("keybindings"))
+	b.WriteString("\n\n")
+	b.WriteString(helpTextStyle.Render("  ctrl+s      save"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("  ctrl+c      save and quit"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("  esc         command palette"))
+	b.WriteString("\n\n")
+	b.WriteString(helpTextStyle.Render("  palette:"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    type        filter commands"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    ↑/↓         navigate"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    enter       select"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    esc         dismiss"))
+	b.WriteString("\n\n")
+	b.WriteString(helpTextStyle.Render("  commands:"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    config      settings"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    date        calendar view"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    recent      recent entries"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    help        this help"))
+	b.WriteString("\n")
+	b.WriteString(helpTextStyle.Render("    exit        save and quit"))
+
+	box := helpBoxStyle.Render(b.String())
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func renderBar(words, minimum, width int) string {

@@ -192,12 +192,13 @@ func (m CalendarModel) View() string {
 		rows = append(rows, strings.Join(row, ""))
 	}
 
-	help := calHelpStyle.Width(21).Render("← → navigate  [ ] month  enter open  q quit")
+	// wip disabling help for now
+	// help := calHelpStyle.Width(21).Render("hjkl navigate\n[ ] month\nenter open\nq quit")
 
 	var sections []string
 	sections = append(sections, title, "", header)
 	sections = append(sections, rows...)
-	sections = append(sections, "", help)
+	// sections = append(sections, "", help)
 
 	block := lipgloss.JoinVertical(lipgloss.Left, sections...)
 

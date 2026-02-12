@@ -46,7 +46,7 @@ const (
 
 type configItem struct {
 	kind  itemKind
-	value int  // preset value for kindMinimumPreset; bool as 0/1 for kindAutoPrompt
+	value int // preset value for kindMinimumPreset; bool as 0/1 for kindAutoPrompt
 	label string
 }
 
@@ -250,10 +250,10 @@ func (m ConfigModel) View() string {
 	menu := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	centeredMenu := lipgloss.NewStyle().Width(w).Align(lipgloss.Center).Render(menu)
 
-	help := cfgHelpStyle.Width(w).Render("↑↓ navigate  enter select  esc cancel")
+	// help := cfgHelpStyle.Width(w).Render("↑↓ navigate  enter select  esc cancel")
 
 	block := lipgloss.JoinVertical(lipgloss.Center,
-		title, "", centeredMenu, "", help,
+		title, "", centeredMenu, "", // help,
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
