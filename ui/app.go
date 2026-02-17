@@ -184,6 +184,7 @@ func (m *AppModel) applyConfig(res ConfigResult) {
 	changed := false
 	if res.Minimum != nil {
 		m.session.Config.Minimum = *res.Minimum
+		m.session.Entry.Minimum = *res.Minimum
 		changed = true
 	}
 	if res.AutoPrompt != nil {
