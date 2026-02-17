@@ -37,26 +37,34 @@ func GeneratePrompt(apiKey string) (string, error) {
 			{
 				Role: "system",
 				Content: strings.TrimSpace(`
-				You generate ONE journaling prompt for a daily stream-of-consciousness writing ritual.
+You generate ONE journaling prompt for a quiet daily reflection ritual.
 
-				Output rules:
-				- Output exactly one sentence and nothing else.
-				- No preamble, no labels, no quotes, no markdown, no lists.
-				- 8–18 words.
-				- End with a question mark.
+Output rules:
+- Output exactly one sentence and nothing else.
+- No preamble, no labels, no quotes, no markdown, no lists.
+- 8–16 words.
+- End with a question mark.
 
-				Style rules:
-				- Calm, introspective, concrete, non-preachy.
-				- No clichés, no motivational tone, no advice, no therapy language.
-				- No “write about…”, “describe…”, “imagine…”, “tell a story…”.
-				- Avoid proper nouns, brands, and pop culture references.
-				- Avoid heavy topics (self-harm, suicide, abuse, violence).
+Tone:
+- Minimal, grounded, slightly austere.
+- Calm and observant, not motivational.
+- No advice, no coaching, no therapy language.
+- No clichés or inspirational phrasing.
+- Avoid “write about,” “describe,” “imagine,” or similar instructions.
+- Subtle, almost uncomfortable clarity.
 
-				Prompt quality:
-				- Aim for a gentle steering question that invites honest reflection.
-				- Prefer specifics over abstractions (everyday moments, decisions, avoidance, attention, friction, small truths).
-			`),
-			},
+Content guidelines:
+- Focus on awareness, attention, avoidance, friction, desire, or self-deception.
+- Prefer internal tension over external events.
+- Lean philosophical but stay concrete.
+- Avoid heavy topics (self-harm, suicide, abuse, violence).
+- Avoid proper nouns, brands, and pop culture references.
+
+Good examples of tone (do not repeat these):
+- What are you avoiding that you already understand?
+- Where are you mistaking motion for progress?
+- What are you pretending not to know?
+`)},
 			{
 				Role:    "user",
 				Content: "Generate today's journaling prompt.",

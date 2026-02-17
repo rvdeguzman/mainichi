@@ -114,7 +114,8 @@ func NewWriterModel(session *app.Session) WriterModel {
 	ta.SetWidth(cardWidth - 4)
 	ta.SetHeight(8)
 	ta.CharLimit = 0
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(lipgloss.Color("234"))
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 	ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	ta.Focus()
 
