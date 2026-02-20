@@ -110,12 +110,13 @@ func NewConfigModel(cfg core.Config) ConfigModel {
 	if promptSource == "" {
 		promptSource = "deck"
 	}
-	if promptSource == "deck" {
-		items = append(items, configItem{kind: kindPromptSource, stringValue: "deck", label: "deck"})
-		items = append(items, configItem{kind: kindPromptSource, stringValue: "ai", label: "ai"})
-	} else {
-		items = append(items, configItem{kind: kindPromptSource, stringValue: "ai", label: "ai"})
-		items = append(items, configItem{kind: kindPromptSource, stringValue: "deck", label: "deck"})
+	allSources := []string{"deck", "ai", "stoic"}
+	// Current source first, then the rest
+	items = append(items, configItem{kind: kindPromptSource, stringValue: promptSource, label: promptSource})
+	for _, s := range allSources {
+		if s != promptSource {
+			items = append(items, configItem{kind: kindPromptSource, stringValue: s, label: s})
+		}
 	}
 
 	// Reset deck section

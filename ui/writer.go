@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -19,6 +20,7 @@ const (
 	modeNormal = iota
 	modePalette
 	modeHelp
+	modePromptEdit
 )
 
 type paletteCommand struct {
@@ -27,12 +29,29 @@ type paletteCommand struct {
 	action string
 }
 
-var commands = []paletteCommand{
+var mainCommands = []paletteCommand{
 	{"config", "settings", "config"},
 	{"date", "calendar view", "date"},
 	{"recent", "recent entries", "recent"},
+	{"prompt", "manage prompt", "prompt-submenu"},
 	{"help", "show keybindings", "help"},
 	{"exit", "save and quit", "quit"},
+}
+
+func promptSubCommands(hasPrompt bool) []paletteCommand {
+	var cmds []paletteCommand
+	if hasPrompt {
+		cmds = append(cmds,
+			paletteCommand{"edit", "modify current prompt", "prompt-edit"},
+			paletteCommand{"delete", "remove prompt", "prompt-delete"},
+		)
+	}
+	cmds = append(cmds,
+		paletteCommand{"deck", "draw from deck", "prompt-deck"},
+		paletteCommand{"ai", "generate with AI", "prompt-ai"},
+		paletteCommand{"stoic", "daily stoic heading", "prompt-stoic"},
+	)
+	return cmds
 }
 
 var (
@@ -102,8 +121,10 @@ type WriterModel struct {
 	paletteCursor    int
 	paletteFiltered  []paletteCommand
 	paletteSearching bool
+	paletteSubmenu   bool // true when in prompt submenu
 	loadingPrompt    bool
 	spinnerFrame     int
+	promptInput      textinput.Model
 }
 
 func NewWriterModel(session *app.Session) WriterModel {
@@ -119,10 +140,16 @@ func NewWriterModel(session *app.Session) WriterModel {
 	ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	ta.Focus()
 
+	pi := textinput.New()
+	pi.Placeholder = "enter prompt"
+	pi.CharLimit = 200
+	pi.Width = 36
+
 	return WriterModel{
 		session:         session,
 		textarea:        ta,
-		paletteFiltered: commands,
+		promptInput:     pi,
+		paletteFiltered: mainCommands,
 	}
 }
 
@@ -159,6 +186,8 @@ func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updatePalette(msg)
 	case modeHelp:
 		return m.updateHelp(msg)
+	case modePromptEdit:
+		return m.updatePromptEdit(msg)
 	default:
 		return m.updateNormal(msg)
 	}
@@ -180,7 +209,9 @@ func (m WriterModel) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = modePalette
 			m.paletteInput = ""
 			m.paletteCursor = 0
-			m.paletteFiltered = commands
+			m.paletteSubmenu = false
+			m.paletteFiltered = mainCommands
+			m.paletteSearching = false
 			m.textarea.Blur()
 			return m, nil
 		}
@@ -204,7 +235,18 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.paletteSearching = false
 				m.paletteInput = ""
 				m.paletteCursor = 0
-				m.paletteFiltered = commands
+				if m.paletteSubmenu {
+					m.paletteFiltered = promptSubCommands(m.session.Entry.Prompt != "")
+				} else {
+					m.paletteFiltered = mainCommands
+				}
+				return m, nil
+			}
+			if m.paletteSubmenu {
+				// Back to main menu
+				m.paletteSubmenu = false
+				m.paletteCursor = 0
+				m.paletteFiltered = mainCommands
 				return m, nil
 			}
 			m.mode = modeNormal
@@ -214,6 +256,13 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.paletteFiltered) > 0 {
 				selected := m.paletteFiltered[m.paletteCursor]
 				switch selected.action {
+				case "prompt-submenu":
+					m.paletteSubmenu = true
+					m.paletteCursor = 0
+					m.paletteInput = ""
+					m.paletteSearching = false
+					m.paletteFiltered = promptSubCommands(m.session.Entry.Prompt != "")
+					return m, nil
 				case "help":
 					m.mode = modeHelp
 					return m, nil
@@ -233,6 +282,27 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.session.Entry.Body = m.textarea.Value()
 					m.session.Save()
 					return m, func() tea.Msg { return switchViewMsg{view: ViewRecent} }
+				case "prompt-delete":
+					m.session.Entry.Prompt = ""
+					m.session.Save()
+					m.mode = modeNormal
+					m.textarea.Focus()
+					return m, nil
+				case "prompt-edit":
+					m.mode = modePromptEdit
+					m.promptInput.SetValue(m.session.Entry.Prompt)
+					m.promptInput.Focus()
+					return m, textinput.Blink
+				case "prompt-deck", "prompt-ai", "prompt-stoic":
+					// Clear existing prompt so regeneration works
+					m.session.Entry.Prompt = ""
+					action := strings.TrimPrefix(selected.action, "prompt-")
+					if action == "ai" {
+						m.loadingPrompt = true
+					}
+					m.mode = modeNormal
+					m.textarea.Focus()
+					return m, func() tea.Msg { return promptActionMsg{action: action} }
 				}
 			}
 			return m, nil
@@ -294,8 +364,14 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *WriterModel) filterPalette() {
 	input := strings.ToLower(m.paletteInput)
+	var source []paletteCommand
+	if m.paletteSubmenu {
+		source = promptSubCommands(m.session.Entry.Prompt != "")
+	} else {
+		source = mainCommands
+	}
 	var filtered []paletteCommand
-	for _, cmd := range commands {
+	for _, cmd := range source {
 		if strings.Contains(strings.ToLower(cmd.name), input) {
 			filtered = append(filtered, cmd)
 		}
@@ -319,6 +395,30 @@ func (m WriterModel) updateHelp(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m WriterModel) updatePromptEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			m.mode = modeNormal
+			m.promptInput.Blur()
+			m.textarea.Focus()
+			return m, nil
+		case "enter":
+			m.session.Entry.Prompt = m.promptInput.Value()
+			m.session.Save()
+			m.mode = modeNormal
+			m.promptInput.Blur()
+			m.textarea.Focus()
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	m.promptInput, cmd = m.promptInput.Update(msg)
+	return m, cmd
+}
+
 func (m WriterModel) View() string {
 	if m.width == 0 {
 		return ""
@@ -329,6 +429,8 @@ func (m WriterModel) View() string {
 		return m.viewPalette()
 	case modeHelp:
 		return m.viewHelp()
+	case modePromptEdit:
+		return m.viewPromptEdit()
 	default:
 		return m.viewWriter()
 	}
@@ -379,6 +481,10 @@ func (m WriterModel) viewWriter() string {
 func (m WriterModel) viewPalette() string {
 	var lines []string
 
+	if m.paletteSubmenu {
+		lines = append(lines, palDescStyle.Render("  prompt ›"))
+	}
+
 	if m.paletteSearching {
 		cursor := "█"
 		inputLine := palPromptStyle.Render("> " + m.paletteInput + cursor)
@@ -397,6 +503,20 @@ func (m WriterModel) viewPalette() string {
 			lines = append(lines, line)
 		}
 	}
+
+	content := strings.Join(lines, "\n")
+	box := palBoxStyle.Render(content)
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+}
+
+func (m WriterModel) viewPromptEdit() string {
+	var lines []string
+	lines = append(lines, palPromptStyle.Render("  edit prompt"))
+	lines = append(lines, "")
+	lines = append(lines, "  "+m.promptInput.View())
+	lines = append(lines, "")
+	lines = append(lines, palDescStyle.Render("  enter save  esc cancel"))
 
 	content := strings.Join(lines, "\n")
 	box := palBoxStyle.Render(content)

@@ -73,6 +73,15 @@ func (s *Session) DrawPrompt(defaultPrompts string) error {
 	return s.Store.SaveDeckState(deck)
 }
 
+// SetStoicPrompt sets the entry's prompt to the Daily Stoic heading for the entry's date.
+// If the entry already has a prompt, it keeps it.
+func (s *Session) SetStoicPrompt(headingsJSON string) {
+	if s.Entry.Prompt != "" {
+		return
+	}
+	s.Entry.Prompt = core.StoicPrompt(headingsJSON, s.Entry.Date)
+}
+
 type RecentEntry struct {
 	Entry     core.Entry
 	WordCount int

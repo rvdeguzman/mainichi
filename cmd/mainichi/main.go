@@ -45,7 +45,8 @@ func main() {
 	case cmd == "":
 		session.OpenToday()
 		if cfg.AutoPrompt {
-			if cfg.PromptSource == "ai" {
+			switch cfg.PromptSource {
+			case "ai":
 				apiKey := os.Getenv("OPENAI_API_KEY")
 				if apiKey != "" {
 					aiPromptAPIKey = apiKey
@@ -54,7 +55,9 @@ func main() {
 						fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
 					}
 				}
-			} else {
+			case "stoic":
+				session.SetStoicPrompt(mainichi.StoicHeadings)
+			default:
 				if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
 				}
@@ -79,6 +82,11 @@ func main() {
 		aiPromptAPIKey = apiKey
 		initialView = ui.ViewWriter
 
+	case cmd == "stoic":
+		session.OpenToday()
+		session.SetStoicPrompt(mainichi.StoicHeadings)
+		initialView = ui.ViewWriter
+
 	case cmd == "config":
 		initialView = ui.ViewConfig
 
@@ -100,6 +108,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  (none)        Open today's entry\n")
 		fmt.Fprintf(os.Stderr, "  prompt        Open today with a writing prompt\n")
 		fmt.Fprintf(os.Stderr, "  ai            Open today with an AI-generated prompt\n")
+		fmt.Fprintf(os.Stderr, "  stoic         Open today with the Daily Stoic heading\n")
 		fmt.Fprintf(os.Stderr, "  config        Configure word count minimum\n")
 		fmt.Fprintf(os.Stderr, "  date          Open calendar view\n")
 		fmt.Fprintf(os.Stderr, "  recent        Browse recent entries\n")
@@ -107,7 +116,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	model := ui.NewAppModel(store, session, initialView, aiPromptAPIKey)
+	model := ui.NewAppModel(store, session, initialView, aiPromptAPIKey, mainichi.DefaultPrompts, mainichi.StoicHeadings)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)

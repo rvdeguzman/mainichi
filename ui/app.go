@@ -30,6 +30,10 @@ type aiPromptMsg struct {
 	err    error
 }
 
+type promptActionMsg struct {
+	action string // "deck", "ai", "stoic"
+}
+
 func fetchAIPrompt(apiKey string) tea.Cmd {
 	return func() tea.Msg {
 		prompt, err := adapters.GeneratePrompt(apiKey)
@@ -48,14 +52,18 @@ type AppModel struct {
 	width          int
 	height         int
 	aiPromptAPIKey string
+	defaultPrompts string
+	stoicHeadings  string
 }
 
-func NewAppModel(store adapters.Store, session *app.Session, initialView int, aiPromptAPIKey string) AppModel {
+func NewAppModel(store adapters.Store, session *app.Session, initialView int, aiPromptAPIKey string, defaultPrompts string, stoicHeadings string) AppModel {
 	m := AppModel{
 		store:          store,
 		session:        session,
 		view:           initialView,
 		aiPromptAPIKey: aiPromptAPIKey,
+		defaultPrompts: defaultPrompts,
+		stoicHeadings:  stoicHeadings,
 	}
 	switch initialView {
 	case ViewWriter:
@@ -129,6 +137,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.session.Save()
 		}
 		m.writer.loadingPrompt = false
+		return m, nil
+
+	case promptActionMsg:
+		switch msg.action {
+		case "deck":
+			if err := m.session.DrawPrompt(m.defaultPrompts); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+			}
+			return m, nil
+		case "ai":
+			apiKey := os.Getenv("OPENAI_API_KEY")
+			if apiKey == "" {
+				fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set\n")
+				m.writer.loadingPrompt = false
+				return m, nil
+			}
+			return m, fetchAIPrompt(apiKey)
+		case "stoic":
+			m.session.SetStoicPrompt(m.stoicHeadings)
+			return m, nil
+		}
 		return m, nil
 
 	default:
