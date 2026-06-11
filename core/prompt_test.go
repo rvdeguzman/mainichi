@@ -48,3 +48,27 @@ func TestLoadPrompts(t *testing.T) {
 		t.Errorf("expected 2 prompts, got %d", len(got))
 	}
 }
+
+func TestDrawResetsStaleOutOfRangeIndexes(t *testing.T) {
+	deck := Deck{Prompts: []string{"only"}, Remaining: []int{4}, Used: []int{0}}
+
+	got := Draw(&deck)
+	if got != "only" {
+		t.Fatalf("Draw() = %q, want only", got)
+	}
+}
+
+func TestNormalizeDeckResetsWhenPromptsChanged(t *testing.T) {
+	deck := Deck{Prompts: []string{"old-a", "old-b"}, Remaining: []int{1}, Used: []int{0}}
+	NormalizeDeck(&deck, []string{"new-only"})
+
+	if len(deck.Prompts) != 1 || deck.Prompts[0] != "new-only" {
+		t.Fatalf("Prompts = %#v, want new-only", deck.Prompts)
+	}
+	if len(deck.Remaining) != 1 || deck.Remaining[0] != 0 {
+		t.Fatalf("Remaining = %#v, want [0]", deck.Remaining)
+	}
+	if len(deck.Used) != 0 {
+		t.Fatalf("Used = %#v, want reset", deck.Used)
+	}
+}

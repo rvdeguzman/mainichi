@@ -108,7 +108,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case switchViewMsg:
 		if msg.date != "" {
-			m.session.OpenDate(msg.date)
+			_ = m.session.OpenDate(msg.date)
 		}
 		m.view = msg.view
 		switch msg.view {
@@ -131,10 +131,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case aiPromptMsg:
 		if msg.err != nil {
-			fmt.Fprintf(os.Stderr, "warning: AI prompt failed: %v\n", msg.err)
+			m.writer.setStatus("couldn't generate prompt")
 		} else {
 			m.session.Entry.Prompt = msg.prompt
-			m.session.Save()
+			if err := m.writer.save(); err != nil {
+				m.writer.setStatus(saveStatus(err))
+			}
 		}
 		m.writer.loadingPrompt = false
 		return m, nil
@@ -143,19 +145,26 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.action {
 		case "deck":
 			if err := m.session.DrawPrompt(m.defaultPrompts); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+				m.writer.setStatus("couldn't draw prompt")
+				return m, nil
+			}
+			if err := m.writer.save(); err != nil {
+				m.writer.setStatus(saveStatus(err))
 			}
 			return m, nil
 		case "ai":
 			apiKey := os.Getenv("OPENAI_API_KEY")
 			if apiKey == "" {
-				fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set\n")
+				m.writer.setStatus("OPENAI_API_KEY not set")
 				m.writer.loadingPrompt = false
 				return m, nil
 			}
 			return m, fetchAIPrompt(apiKey)
 		case "stoic":
 			m.session.SetStoicPrompt(m.stoicHeadings)
+			if err := m.writer.save(); err != nil {
+				m.writer.setStatus(saveStatus(err))
+			}
 			return m, nil
 		}
 		return m, nil
