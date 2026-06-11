@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mainichi/adapters"
 	"mainichi/core"
+	"os"
 	"time"
 )
 
@@ -11,19 +12,29 @@ type Session struct {
 	Store  adapters.Store
 	Config core.Config
 	Entry  core.Entry
+
+	OpenError   error
+	pendingDeck *core.Deck
 }
 
 func NewSession(store adapters.Store, cfg core.Config) *Session {
 	return &Session{Store: store, Config: cfg}
 }
 
-func (s *Session) OpenToday() {
-	s.OpenDate(time.Now().Format("2006-01-02"))
+func (s *Session) OpenToday() error {
+	return s.OpenDate(time.Now().Format("2006-01-02"))
 }
 
-func (s *Session) OpenDate(date string) {
+func (s *Session) OpenDate(date string) error {
+	s.OpenError = nil
+	s.pendingDeck = nil
 	entry, err := s.Store.LoadEntry(date)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			s.OpenError = err
+			s.Entry = core.Entry{Date: date, Minimum: s.Config.Minimum}
+			return err
+		}
 		entry = core.Entry{
 			Date:    date,
 			Minimum: s.Config.Minimum,
@@ -33,16 +44,29 @@ func (s *Session) OpenDate(date string) {
 		entry.Minimum = s.Config.Minimum
 	}
 	s.Entry = entry
+	return nil
 }
 
 func (s *Session) Save() error {
+	if s.OpenError != nil {
+		return fmt.Errorf("cannot save while entry failed to open: %w", s.OpenError)
+	}
 	if s.Entry.Minimum <= 0 {
 		s.Entry.Minimum = s.Config.Minimum
 	}
-	return s.Store.SaveEntry(s.Entry)
+	if err := s.Store.SaveEntry(s.Entry); err != nil {
+		return err
+	}
+	if s.pendingDeck != nil {
+		if err := s.Store.SaveDeckState(*s.pendingDeck); err != nil {
+			return err
+		}
+		s.pendingDeck = nil
+	}
+	return nil
 }
 
-// DrawPrompt loads the deck, draws a prompt, assigns it to the entry, and persists deck state.
+// DrawPrompt loads the deck, draws a prompt, and stages deck state to persist on Save.
 // If the entry already has a prompt, it keeps it.
 func (s *Session) DrawPrompt(defaultPrompts string) error {
 	if s.Entry.Prompt != "" {
@@ -64,13 +88,13 @@ func (s *Session) DrawPrompt(defaultPrompts string) error {
 		// No saved state — create a fresh deck
 		deck = core.NewDeck(prompts)
 	}
-	// Sync prompts list (in case prompts.txt changed)
-	deck.Prompts = prompts
+	core.NormalizeDeck(&deck, prompts)
 
 	prompt := core.Draw(&deck)
 	s.Entry.Prompt = prompt
+	s.pendingDeck = &deck
 
-	return s.Store.SaveDeckState(deck)
+	return nil
 }
 
 // SetStoicPrompt sets the entry's prompt to the Daily Stoic heading for the entry's date.

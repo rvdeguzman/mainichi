@@ -2,6 +2,7 @@ package core
 
 import (
 	"math/rand"
+	"slices"
 	"strings"
 )
 
@@ -28,10 +29,30 @@ func NewDeck(prompts []string) Deck {
 	return d
 }
 
+func NormalizeDeck(deck *Deck, prompts []string) {
+	if !slices.Equal(deck.Prompts, prompts) {
+		*deck = NewDeck(prompts)
+		return
+	}
+	for _, idx := range deck.Remaining {
+		if idx < 0 || idx >= len(deck.Prompts) {
+			Reshuffle(deck)
+			return
+		}
+	}
+	for _, idx := range deck.Used {
+		if idx < 0 || idx >= len(deck.Prompts) {
+			Reshuffle(deck)
+			return
+		}
+	}
+}
+
 func Draw(deck *Deck) string {
 	if len(deck.Prompts) == 0 {
 		return ""
 	}
+	NormalizeDeck(deck, deck.Prompts)
 	if NeedsReshuffle(*deck) {
 		Reshuffle(deck)
 	}

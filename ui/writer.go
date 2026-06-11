@@ -125,6 +125,7 @@ type WriterModel struct {
 	loadingPrompt    bool
 	spinnerFrame     int
 	promptInput      textinput.Model
+	status           string
 }
 
 func NewWriterModel(session *app.Session) WriterModel {
@@ -150,7 +151,36 @@ func NewWriterModel(session *app.Session) WriterModel {
 		textarea:        ta,
 		promptInput:     pi,
 		paletteFiltered: mainCommands,
+		status:          openStatus(session.OpenError),
 	}
+}
+
+func openStatus(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "couldn't open entry — saved copy left untouched"
+}
+
+func saveStatus(err error) string {
+	if err == nil {
+		return "saved"
+	}
+	return "couldn't save — please check your mainichi files"
+}
+
+func (m *WriterModel) setStatus(status string) {
+	m.status = status
+}
+
+func (m *WriterModel) save() error {
+	m.session.Entry.Body = m.textarea.Value()
+	if err := m.session.Save(); err != nil {
+		m.setStatus(saveStatus(err))
+		return err
+	}
+	m.setStatus(saveStatus(nil))
+	return nil
 }
 
 func promptTick() tea.Cmd {
@@ -198,12 +228,12 @@ func (m WriterModel) updateNormal(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+s":
-			m.session.Entry.Body = m.textarea.Value()
-			m.session.Save()
+			_ = m.save()
 			return m, nil
 		case "ctrl+c":
-			m.session.Entry.Body = m.textarea.Value()
-			m.session.Save()
+			if err := m.save(); err != nil {
+				return m, nil
+			}
 			return m, tea.Quit
 		case "esc":
 			m.mode = modePalette
@@ -227,8 +257,9 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			m.session.Entry.Body = m.textarea.Value()
-			m.session.Save()
+			if err := m.save(); err != nil {
+				return m, nil
+			}
 			return m, tea.Quit
 		case "esc":
 			if m.paletteSearching {
@@ -267,24 +298,30 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.mode = modeHelp
 					return m, nil
 				case "quit":
-					m.session.Entry.Body = m.textarea.Value()
-					m.session.Save()
+					if err := m.save(); err != nil {
+						return m, nil
+					}
 					return m, tea.Quit
 				case "config":
-					m.session.Entry.Body = m.textarea.Value()
-					m.session.Save()
+					if err := m.save(); err != nil {
+						return m, nil
+					}
 					return m, func() tea.Msg { return switchViewMsg{view: ViewConfig} }
 				case "date":
-					m.session.Entry.Body = m.textarea.Value()
-					m.session.Save()
+					if err := m.save(); err != nil {
+						return m, nil
+					}
 					return m, func() tea.Msg { return switchViewMsg{view: ViewCalendar} }
 				case "recent":
-					m.session.Entry.Body = m.textarea.Value()
-					m.session.Save()
+					if err := m.save(); err != nil {
+						return m, nil
+					}
 					return m, func() tea.Msg { return switchViewMsg{view: ViewRecent} }
 				case "prompt-delete":
 					m.session.Entry.Prompt = ""
-					m.session.Save()
+					if err := m.save(); err != nil {
+						return m, nil
+					}
 					m.mode = modeNormal
 					m.textarea.Focus()
 					return m, nil
@@ -406,7 +443,9 @@ func (m WriterModel) updatePromptEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "enter":
 			m.session.Entry.Prompt = m.promptInput.Value()
-			m.session.Save()
+			if err := m.save(); err != nil {
+				return m, nil
+			}
 			m.mode = modeNormal
 			m.promptInput.Blur()
 			m.textarea.Focus()
@@ -469,6 +508,9 @@ func (m WriterModel) viewWriter() string {
 	sections = append(sections, title)
 	if promptLine != "" {
 		sections = append(sections, promptLine)
+	}
+	if m.status != "" {
+		sections = append(sections, palDescStyle.Width(cardWidth).Align(lipgloss.Center).Render(m.status))
 	}
 	sections = append(sections, card)
 	sections = append(sections, lipgloss.NewStyle().Align(lipgloss.Center).Width(cardWidth).Render(bar))
