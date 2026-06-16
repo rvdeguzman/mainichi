@@ -9,6 +9,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Minimum:      250,
-		PromptSource: "deck",
+		PromptSource: "stoic",
 	}
 }

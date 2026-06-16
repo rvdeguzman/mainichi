@@ -10,9 +10,7 @@ import (
 )
 
 var (
-	recentTitleStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("241")).
-				Align(lipgloss.Center)
+	recentTitleStyle = screenTitleStyle
 
 	recentMutedStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("243"))
@@ -24,9 +22,7 @@ var (
 	recentWordStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243"))
 
-	recentHelpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Align(lipgloss.Center)
+	recentHelpStyle = screenHelpStyle
 
 	recentPreviewBorder = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
@@ -90,7 +86,7 @@ func (m RecentModel) View() string {
 		return ""
 	}
 
-	title := recentTitleStyle.Width(m.width).Render("mainichi — recent")
+	title := screenTitleStyle.Width(m.width).Render("mainichi — recent")
 
 	if len(m.entries) == 0 {
 		empty := recentMutedStyle.Render("No entries yet.")
@@ -166,7 +162,7 @@ func (m RecentModel) View() string {
 
 	// help := recentHelpStyle.Render("↑↓ navigate  enter open  q quit")
 
-	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "")
+	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "", screenHelpStyle.Render("↑/↓ scroll • esc back • ctrl+c quit"))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
 }
 

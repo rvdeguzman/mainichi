@@ -25,8 +25,8 @@ type configDoneMsg struct {
 	result ConfigResult
 }
 
-type aiPromptMsg struct {
-	prompt string
+type promptReadyMsg struct {
+	action string
 	err    error
 }
 
@@ -34,41 +34,45 @@ type promptActionMsg struct {
 	action string // "deck", "ai", "stoic"
 }
 
-func fetchAIPrompt(apiKey string) tea.Cmd {
+func promptSourceCmd(session *app.Session, source, defaultPrompts, stoicHeadings, apiKey string) tea.Cmd {
 	return func() tea.Msg {
-		prompt, err := adapters.GeneratePrompt(apiKey)
-		return aiPromptMsg{prompt: prompt, err: err}
+		return promptReadyMsg{
+			action: source,
+			err:    session.ApplyPromptSource(source, defaultPrompts, stoicHeadings, apiKey),
+		}
 	}
 }
 
 type AppModel struct {
-	store          adapters.Store
-	session        *app.Session
-	view           int
-	writer         WriterModel
-	calendar       CalendarModel
-	recent         RecentModel
-	config         ConfigModel
-	width          int
-	height         int
-	aiPromptAPIKey string
-	defaultPrompts string
-	stoicHeadings  string
+	store               adapters.Store
+	session             *app.Session
+	view                int
+	writer              WriterModel
+	calendar            CalendarModel
+	recent              RecentModel
+	config              ConfigModel
+	width               int
+	height              int
+	aiPromptAPIKey      string
+	defaultPrompts      string
+	stoicHeadings       string
+	initialPromptSource string
 }
 
-func NewAppModel(store adapters.Store, session *app.Session, initialView int, aiPromptAPIKey string, defaultPrompts string, stoicHeadings string) AppModel {
+func NewAppModel(store adapters.Store, session *app.Session, initialView int, initialPromptSource string, aiPromptAPIKey string, defaultPrompts string, stoicHeadings string) AppModel {
 	m := AppModel{
-		store:          store,
-		session:        session,
-		view:           initialView,
-		aiPromptAPIKey: aiPromptAPIKey,
-		defaultPrompts: defaultPrompts,
-		stoicHeadings:  stoicHeadings,
+		store:               store,
+		session:             session,
+		view:                initialView,
+		aiPromptAPIKey:      aiPromptAPIKey,
+		defaultPrompts:      defaultPrompts,
+		stoicHeadings:       stoicHeadings,
+		initialPromptSource: initialPromptSource,
 	}
 	switch initialView {
 	case ViewWriter:
 		m.writer = NewWriterModel(session)
-		if aiPromptAPIKey != "" {
+		if initialPromptSource == "ai" {
 			m.writer.loadingPrompt = true
 		}
 	case ViewCalendar:
@@ -85,8 +89,8 @@ func (m AppModel) Init() tea.Cmd {
 	switch m.view {
 	case ViewWriter:
 		cmds := []tea.Cmd{m.writer.Init()}
-		if m.aiPromptAPIKey != "" {
-			cmds = append(cmds, fetchAIPrompt(m.aiPromptAPIKey))
+		if m.initialPromptSource != "" {
+			cmds = append(cmds, promptSourceCmd(m.session, m.initialPromptSource, m.defaultPrompts, m.stoicHeadings, m.aiPromptAPIKey))
 		}
 		return tea.Batch(cmds...)
 	case ViewCalendar:
@@ -129,45 +133,20 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.writer = NewWriterModel(m.session)
 		return m, m.childInit()
 
-	case aiPromptMsg:
+	case promptReadyMsg:
 		if msg.err != nil {
 			m.writer.setStatus("couldn't generate prompt")
-		} else {
-			m.session.Entry.Prompt = msg.prompt
-			if err := m.writer.save(); err != nil {
-				m.writer.setStatus(saveStatus(err))
-			}
+		} else if err := m.writer.save(); err != nil {
+			m.writer.setStatus(saveStatus(err))
 		}
 		m.writer.loadingPrompt = false
 		return m, nil
 
 	case promptActionMsg:
-		switch msg.action {
-		case "deck":
-			if err := m.session.DrawPrompt(m.defaultPrompts); err != nil {
-				m.writer.setStatus("couldn't draw prompt")
-				return m, nil
-			}
-			if err := m.writer.save(); err != nil {
-				m.writer.setStatus(saveStatus(err))
-			}
-			return m, nil
-		case "ai":
-			apiKey := os.Getenv("OPENAI_API_KEY")
-			if apiKey == "" {
-				m.writer.setStatus("OPENAI_API_KEY not set")
-				m.writer.loadingPrompt = false
-				return m, nil
-			}
-			return m, fetchAIPrompt(apiKey)
-		case "stoic":
-			m.session.SetStoicPrompt(m.stoicHeadings)
-			if err := m.writer.save(); err != nil {
-				m.writer.setStatus(saveStatus(err))
-			}
-			return m, nil
+		if msg.action == "ai" {
+			m.writer.loadingPrompt = true
 		}
-		return m, nil
+		return m, promptSourceCmd(m.session, msg.action, m.defaultPrompts, m.stoicHeadings, m.aiPromptAPIKey)
 
 	default:
 		return m.updateChild(msg)

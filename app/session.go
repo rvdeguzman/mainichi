@@ -106,6 +106,31 @@ func (s *Session) SetStoicPrompt(headingsJSON string) {
 	s.Entry.Prompt = core.StoicPrompt(headingsJSON, s.Entry.Date)
 }
 
+// ApplyPromptSource assigns a prompt from the configured source.
+func (s *Session) ApplyPromptSource(source, defaultPrompts, stoicHeadings, apiKey string) error {
+	if s.Entry.Prompt != "" {
+		return nil
+	}
+
+	switch source {
+	case "stoic":
+		s.SetStoicPrompt(stoicHeadings)
+		return nil
+	case "ai":
+		if apiKey == "" {
+			return fmt.Errorf("OPENAI_API_KEY not set")
+		}
+		prompt, err := adapters.GeneratePrompt(apiKey)
+		if err != nil {
+			return err
+		}
+		s.Entry.Prompt = prompt
+		return nil
+	default:
+		return s.DrawPrompt(defaultPrompts)
+	}
+}
+
 type RecentEntry struct {
 	Entry     core.Entry
 	WordCount int
