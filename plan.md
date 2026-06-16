@@ -207,7 +207,7 @@ deck empty → reshuffle
 
 ### AI Prompts (Optional)
 
-- Triggered via `--ai`.
+- Triggered via `mainichi ai` (deprecated); `mainichi --ai` is supported as an alias.
 - Generated once per session.
 - Not added to deck.
 - No regeneration loop.
@@ -222,8 +222,9 @@ AI prompts are suggestions only.
 
 ```
 mainichi              # open today's entry
-mainichi prompt       # open with deck prompt
-mainichi --ai         # open with AI prompt
+mainichi prompt       # open with the configured prompt source (stoic by default)
+mainichi ai           # open with an AI prompt (deprecated)
+mainichi --ai         # same as mainichi ai
 mainichi date         # open calendar view
 mainichi YYYY-MM-DD   # open specific date
 ```

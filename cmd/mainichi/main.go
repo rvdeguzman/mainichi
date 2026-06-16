@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -35,56 +36,52 @@ func main() {
 
 	cmd := ""
 	if len(os.Args) > 1 {
-		cmd = os.Args[1]
+		cmd = normalizeCommand(os.Args[1])
 	}
 
 	var initialView int
-	var aiPromptAPIKey string
+	initialPromptSource := ""
+	aiPromptAPIKey := os.Getenv("OPENAI_API_KEY")
 
 	switch {
 	case cmd == "":
 		session.OpenToday()
 		if cfg.AutoPrompt {
-			switch cfg.PromptSource {
-			case "ai":
-				apiKey := os.Getenv("OPENAI_API_KEY")
-				if apiKey != "" {
-					aiPromptAPIKey = apiKey
-				} else {
-					if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
-						fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
-					}
-				}
-			case "stoic":
-				session.SetStoicPrompt(mainichi.StoicHeadings)
-			default:
-				if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
-				}
+			initialPromptSource = cfg.PromptSource
+			if initialPromptSource == "" {
+				initialPromptSource = "stoic"
+			}
+			if initialPromptSource == "ai" && aiPromptAPIKey == "" {
+				fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set; using stoic prompt instead\n")
+				initialPromptSource = "stoic"
 			}
 		}
 		initialView = ui.ViewWriter
 
 	case cmd == "prompt":
 		session.OpenToday()
-		if err := session.DrawPrompt(mainichi.DefaultPrompts); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not draw prompt: %v\n", err)
+		initialPromptSource = cfg.PromptSource
+		if initialPromptSource == "" {
+			initialPromptSource = "stoic"
+		}
+		if initialPromptSource == "ai" && aiPromptAPIKey == "" {
+			fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set; using stoic prompt instead\n")
+			initialPromptSource = "stoic"
 		}
 		initialView = ui.ViewWriter
 
 	case cmd == "ai":
-		apiKey := os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
+		if aiPromptAPIKey == "" {
 			fmt.Fprintf(os.Stderr, "error: OPENAI_API_KEY not set\n")
 			os.Exit(1)
 		}
 		session.OpenToday()
-		aiPromptAPIKey = apiKey
+		initialPromptSource = "ai"
 		initialView = ui.ViewWriter
 
 	case cmd == "stoic":
 		session.OpenToday()
-		session.SetStoicPrompt(mainichi.StoicHeadings)
+		initialPromptSource = "stoic"
 		initialView = ui.ViewWriter
 
 	case cmd == "config":
@@ -103,22 +100,33 @@ func main() {
 		initialView = ui.ViewWriter
 
 	default:
-		fmt.Fprintf(os.Stderr, "Usage: mainichi [command]\n\n")
-		fmt.Fprintf(os.Stderr, "Commands:\n")
-		fmt.Fprintf(os.Stderr, "  (none)        Open today's entry\n")
-		fmt.Fprintf(os.Stderr, "  prompt        Open today with a writing prompt\n")
-		fmt.Fprintf(os.Stderr, "  ai            Open today with an AI-generated prompt\n")
-		fmt.Fprintf(os.Stderr, "  stoic         Open today with the Daily Stoic heading\n")
-		fmt.Fprintf(os.Stderr, "  config        Configure word count minimum\n")
-		fmt.Fprintf(os.Stderr, "  date          Open calendar view\n")
-		fmt.Fprintf(os.Stderr, "  recent        Browse recent entries\n")
-		fmt.Fprintf(os.Stderr, "  YYYY-MM-DD    Open a specific date's entry\n")
+		printUsage(os.Stderr)
 		os.Exit(1)
 	}
 
-	model := ui.NewAppModel(store, session, initialView, aiPromptAPIKey, mainichi.DefaultPrompts, mainichi.StoicHeadings)
+	model := ui.NewAppModel(store, session, initialView, initialPromptSource, aiPromptAPIKey, mainichi.DefaultPrompts, mainichi.StoicHeadings)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func normalizeCommand(cmd string) string {
+	if cmd == "--ai" {
+		return "ai"
+	}
+	return cmd
+}
+
+func printUsage(w io.Writer) {
+	fmt.Fprintf(w, "Usage: mainichi [command]\n\n")
+	fmt.Fprintf(w, "Commands:\n")
+	fmt.Fprintf(w, "  (none)        Open today's entry\n")
+	fmt.Fprintf(w, "  prompt        Open today with the configured prompt source (stoic by default)\n")
+	fmt.Fprintf(w, "  ai, --ai      Open today with an AI-generated prompt (deprecated)\n")
+	fmt.Fprintf(w, "  stoic         Open today with the Daily Stoic heading\n")
+	fmt.Fprintf(w, "  config        Configure writing settings\n")
+	fmt.Fprintf(w, "  date          Open calendar view\n")
+	fmt.Fprintf(w, "  recent        Browse recent entries\n")
+	fmt.Fprintf(w, "  YYYY-MM-DD    Open a specific date's entry\n")
 }

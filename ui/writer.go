@@ -47,17 +47,15 @@ func promptSubCommands(hasPrompt bool) []paletteCommand {
 		)
 	}
 	cmds = append(cmds,
-		paletteCommand{"deck", "draw from deck", "prompt-deck"},
-		paletteCommand{"ai", "generate with AI", "prompt-ai"},
-		paletteCommand{"stoic", "daily stoic heading", "prompt-stoic"},
+		paletteCommand{"stoic", promptSourceDescription("stoic"), "prompt-stoic"},
+		paletteCommand{"deck", promptSourceDescription("deck"), "prompt-deck"},
+		paletteCommand{"ai", promptSourceDescription("ai"), "prompt-ai"},
 	)
 	return cmds
 }
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Align(lipgloss.Center)
+	titleStyle = screenTitleStyle
 
 	promptStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243")).

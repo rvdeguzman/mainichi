@@ -13,9 +13,7 @@ import (
 var presets = []int{150, 250, 300, 500, 750}
 
 var (
-	cfgTitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Align(lipgloss.Center)
+	cfgTitleStyle = screenTitleStyle
 
 	cfgSectionStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243"))
@@ -30,9 +28,7 @@ var (
 	cfgCurrentStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243"))
 
-	cfgHelpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Align(lipgloss.Center)
+	cfgHelpStyle = screenHelpStyle
 )
 
 type itemKind int
@@ -108,15 +104,11 @@ func NewConfigModel(cfg core.Config) ConfigModel {
 	// Prompt source section
 	promptSource := cfg.PromptSource
 	if promptSource == "" {
-		promptSource = "deck"
+		promptSource = "stoic"
 	}
-	allSources := []string{"deck", "ai", "stoic"}
-	// Current source first, then the rest
-	items = append(items, configItem{kind: kindPromptSource, stringValue: promptSource, label: promptSource})
+	allSources := []string{"stoic", "deck", "ai"}
 	for _, s := range allSources {
-		if s != promptSource {
-			items = append(items, configItem{kind: kindPromptSource, stringValue: s, label: s})
-		}
+		items = append(items, configItem{kind: kindPromptSource, stringValue: s, label: promptSourceLabel(s)})
 	}
 
 	// Reset deck section
@@ -277,10 +269,10 @@ func (m ConfigModel) View() string {
 	menu := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	centeredMenu := lipgloss.NewStyle().Width(w).Align(lipgloss.Center).Render(menu)
 
-	// help := cfgHelpStyle.Width(w).Render("↑↓ navigate  enter select  esc cancel")
+	help := screenHelpStyle.Width(w).Render("←/→ change • enter save • esc back • ctrl+c quit")
 
 	block := lipgloss.JoinVertical(lipgloss.Center,
-		title, "", centeredMenu, "", // help,
+		title, "", centeredMenu, "", help,
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)

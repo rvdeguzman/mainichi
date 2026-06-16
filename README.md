@@ -5,15 +5,19 @@ A minimal daily writing habit tool for the terminal.
 ## Install
 
 ```
-go install mainichi/cmd/mainichi@latest
+git clone https://github.com/rvdeguzman/mainichi.git
+cd mainichi
+go install ./cmd/mainichi
 ```
 
 ## Usage
 
 ```
 mainichi                # open today's entry
-mainichi prompt         # open today with a writing prompt
-mainichi ai             # open today with an AI-generated writing prompt
+mainichi prompt         # open today with the configured prompt source (stoic by default)
+mainichi ai             # open today with an AI-generated writing prompt (deprecated)
+mainichi --ai           # same as mainichi ai
+mainichi stoic          # open today with the Daily Stoic heading
 mainichi config         # settings
 mainichi date           # calendar view
 mainichi recent         # browse recent entries
@@ -35,7 +39,7 @@ In the command palette, use `j`/`k` or arrows to navigate and `enter` to select.
 | Variable | Description |
 |---|---|
 | `MAINICHI_DIR` | Custom data directory (default: `~/.mainichi`) |
-| `OPENAI_API_KEY` | Required for `mainichi ai` and `prompt_source = "ai"` |
+| `OPENAI_API_KEY` | Required for deprecated `mainichi ai`, `mainichi --ai`, and `prompt_source = "ai"` |
 
 To sync entries via iCloud, add to your `.zshrc`:
 

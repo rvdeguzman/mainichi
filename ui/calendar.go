@@ -11,10 +11,7 @@ import (
 )
 
 var (
-	calTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("255")).
-			Align(lipgloss.Center)
+	calTitleStyle = screenTitleStyle
 
 	calHeaderStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
@@ -29,9 +26,7 @@ var (
 				Bold(true).
 				Foreground(lipgloss.Color("255"))
 
-	calHelpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Align(lipgloss.Center)
+	calHelpStyle = screenHelpStyle
 )
 
 type CalendarModel struct {
@@ -145,7 +140,7 @@ func (m CalendarModel) View() string {
 	entries := m.session.ListEntries(m.year, m.month)
 
 	// Title
-	title := calTitleStyle.Width(21).Render(
+	title := screenTitleStyle.Width(21).Render(
 		fmt.Sprintf("%s %d", m.month.String(), m.year),
 	)
 
@@ -191,10 +186,9 @@ func (m CalendarModel) View() string {
 	// wip disabling help for now
 	// help := calHelpStyle.Width(21).Render("hjkl navigate\n[ ] month\nenter open\nq quit")
 
-	var sections []string
-	sections = append(sections, title, "", header)
+	sections := []string{title, "", header}
 	sections = append(sections, rows...)
-	// sections = append(sections, "", help)
+	sections = append(sections, "", screenHelpStyle.Render("←/→ month • esc back • ctrl+c quit"))
 
 	block := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
