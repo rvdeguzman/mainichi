@@ -10,24 +10,18 @@ import (
 )
 
 var (
-	recentTitleStyle = screenTitleStyle
+	recentTitleStyle = titleStyle
 
-	recentMutedStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("243"))
+	recentMutedStyle = itemStyle
 
-	recentActiveStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("255")).
-				Bold(true)
+	recentActiveStyle = activeStyle
 
-	recentWordStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
+	recentWordStyle = mutedStyle
 
-	recentHelpStyle = screenHelpStyle
+	recentHelpStyle = helpTextStyle.
+			Align(lipgloss.Center)
 
-	recentPreviewBorder = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("238")).
-				Foreground(lipgloss.Color("245"))
+	recentPreviewBorder = boxStyle.Foreground(colorItem)
 )
 
 type RecentModel struct {
@@ -86,7 +80,7 @@ func (m RecentModel) View() string {
 		return ""
 	}
 
-	title := screenTitleStyle.Width(m.width).Render("mainichi — recent")
+	title := recentTitleStyle.Width(cardWidth).Render("mainichi — recent")
 
 	if len(m.entries) == 0 {
 		empty := recentMutedStyle.Render("No entries yet.")
@@ -138,11 +132,11 @@ func (m RecentModel) View() string {
 	var content string
 	if showPreview {
 		// Preview pane
-		previewWidth := m.width/2 - 4
+		previewWidth := m.width/2 - recentPreviewBorder.GetHorizontalFrameSize() - 2
 		if previewWidth < 20 {
 			previewWidth = 20
 		}
-		previewHeight := maxVisible - 2 // account for border
+		previewHeight := maxVisible - recentPreviewBorder.GetVerticalFrameSize()
 		if previewHeight < 1 {
 			previewHeight = 1
 		}
@@ -162,7 +156,7 @@ func (m RecentModel) View() string {
 
 	// help := recentHelpStyle.Render("↑↓ navigate  enter open  q quit")
 
-	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "", screenHelpStyle.Render("↑/↓ scroll • esc back • ctrl+c quit"))
+	block := lipgloss.JoinVertical(lipgloss.Center, title, "", content, "", recentHelpStyle.Render("↑/↓ scroll • esc back • ctrl+c quit"))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
 }
 
