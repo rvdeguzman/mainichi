@@ -11,22 +11,20 @@ import (
 )
 
 var (
-	calTitleStyle = screenTitleStyle
+	calTitleStyle = titleStyle
 
-	calHeaderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
+	calHeaderStyle = sectionStyle
 
-	calDayStyle = lipgloss.NewStyle().
+	calDayStyle = itemStyle.
 			Width(3).
 			Align(lipgloss.Center)
 
-	calSelectedStyle = lipgloss.NewStyle().
+	calSelectedStyle = activeStyle.
 				Width(3).
-				Align(lipgloss.Center).
-				Bold(true).
-				Foreground(lipgloss.Color("255"))
+				Align(lipgloss.Center)
 
-	calHelpStyle = screenHelpStyle
+	calHelpStyle = helpTextStyle.
+			Align(lipgloss.Center)
 )
 
 type CalendarModel struct {
@@ -140,7 +138,7 @@ func (m CalendarModel) View() string {
 	entries := m.session.ListEntries(m.year, m.month)
 
 	// Title
-	title := screenTitleStyle.Width(21).Render(
+	title := calTitleStyle.Width(cardWidth).Render(
 		fmt.Sprintf("%s %d", m.month.String(), m.year),
 	)
 
@@ -188,9 +186,9 @@ func (m CalendarModel) View() string {
 
 	sections := []string{title, "", header}
 	sections = append(sections, rows...)
-	sections = append(sections, "", screenHelpStyle.Render("←/→ month • esc back • ctrl+c quit"))
+	sections = append(sections, "", calHelpStyle.Render("←/→ month • esc back • ctrl+c quit"))
 
-	block := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	block := lipgloss.JoinVertical(lipgloss.Center, sections...)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, block)
 }

@@ -14,8 +14,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const cardWidth = 70
-
 const (
 	modeNormal = iota
 	modePalette
@@ -54,55 +52,24 @@ func promptSubCommands(hasPrompt bool) []paletteCommand {
 	return cmds
 }
 
+// Writer-specific styles. Shared title/border/item styles live in theme.go;
+// only the styles unique to the writer (italic prompt, progress bar, the
+// help modal's extra padding) are defined here.
 var (
-	titleStyle = screenTitleStyle
-
 	promptStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
+			Foreground(colorMuted).
 			Italic(true).
 			Align(lipgloss.Center)
 
-	cardStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			Padding(0, 1)
-
 	barFilledStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+			Foreground(colorItem)
 
 	barEmptyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("236"))
+			Foreground(colorBorder)
 
-	palBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			Width(40).
-			Padding(0, 1)
-
-	palPromptStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
-
-	palActiveStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
-			Bold(true)
-
-	palItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	palDescStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("238"))
-
-	helpBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("238")).
-			Padding(1, 2)
-
-	helpTitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
-			Bold(true)
-
-	helpTextStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
+	// helpBoxStyle is the shared rounded border with roomier padding for the
+	// help modal's denser content.
+	helpBoxStyle = borderStyle.Padding(1, 2)
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -136,7 +103,7 @@ func NewWriterModel(session *app.Session) WriterModel {
 	ta.CharLimit = 0
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
-	ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle().Foreground(colorPrompt)
 	ta.Focus()
 
 	pi := textinput.New()
@@ -491,7 +458,7 @@ func (m WriterModel) viewWriter() string {
 	}
 
 	// Card
-	card := cardStyle.Width(cardWidth).Render(m.textarea.View())
+	card := boxStyle.Width(cardWidth).Render(m.textarea.View())
 
 	// Progress bar
 	wc := core.WordCount(m.textarea.Value())
@@ -508,7 +475,7 @@ func (m WriterModel) viewWriter() string {
 		sections = append(sections, promptLine)
 	}
 	if m.status != "" {
-		sections = append(sections, palDescStyle.Width(cardWidth).Align(lipgloss.Center).Render(m.status))
+		sections = append(sections, faintStyle.Width(cardWidth).Align(lipgloss.Center).Render(m.status))
 	}
 	sections = append(sections, card)
 	sections = append(sections, lipgloss.NewStyle().Align(lipgloss.Center).Width(cardWidth).Render(bar))
@@ -522,44 +489,44 @@ func (m WriterModel) viewPalette() string {
 	var lines []string
 
 	if m.paletteSubmenu {
-		lines = append(lines, palDescStyle.Render("  prompt ›"))
+		lines = append(lines, faintStyle.Render("  prompt ›"))
 	}
 
 	if m.paletteSearching {
 		cursor := "█"
-		inputLine := palPromptStyle.Render("> " + m.paletteInput + cursor)
+		inputLine := itemStyle.Render("> " + m.paletteInput + cursor)
 		lines = append(lines, inputLine)
 	}
 
 	// Filtered commands
 	for i, cmd := range m.paletteFiltered {
 		name := cmd.name
-		desc := palDescStyle.Render("  " + cmd.desc)
+		desc := faintStyle.Render("  " + cmd.desc)
 		if i == m.paletteCursor {
-			line := palActiveStyle.Render("  ▸ "+name) + desc
+			line := activeStyle.Render("  ▸ "+name) + desc
 			lines = append(lines, line)
 		} else {
-			line := palItemStyle.Render("    "+name) + desc
+			line := itemStyle.Render("    "+name) + desc
 			lines = append(lines, line)
 		}
 	}
 
 	content := strings.Join(lines, "\n")
-	box := palBoxStyle.Render(content)
+	box := boxStyle.Width(paletteWidth).Render(content)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func (m WriterModel) viewPromptEdit() string {
 	var lines []string
-	lines = append(lines, palPromptStyle.Render("  edit prompt"))
+	lines = append(lines, helpTitleStyle.Render("  edit prompt"))
 	lines = append(lines, "")
 	lines = append(lines, "  "+m.promptInput.View())
 	lines = append(lines, "")
-	lines = append(lines, palDescStyle.Render("  enter save  esc cancel"))
+	lines = append(lines, faintStyle.Render("  enter save  esc cancel"))
 
 	content := strings.Join(lines, "\n")
-	box := palBoxStyle.Render(content)
+	box := boxStyle.Width(paletteWidth).Render(content)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

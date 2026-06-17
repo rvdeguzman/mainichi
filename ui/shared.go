@@ -1,15 +1,5 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
-
-var screenTitleStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("241")).
-	Align(lipgloss.Center)
-
-var screenHelpStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("241")).
-	Align(lipgloss.Center)
-
 func promptSourceLabel(source string) string {
 	switch source {
 	case "ai":

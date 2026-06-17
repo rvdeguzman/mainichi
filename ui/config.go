@@ -13,22 +13,18 @@ import (
 var presets = []int{150, 250, 300, 500, 750}
 
 var (
-	cfgTitleStyle = screenTitleStyle
+	cfgTitleStyle = titleStyle
 
-	cfgSectionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
+	cfgSectionStyle = sectionStyle
 
-	cfgItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+	cfgItemStyle = itemStyle
 
-	cfgActiveStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
-			Bold(true)
+	cfgActiveStyle = activeStyle
 
-	cfgCurrentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
+	cfgCurrentStyle = mutedStyle
 
-	cfgHelpStyle = screenHelpStyle
+	cfgHelpStyle = helpTextStyle.
+			Align(lipgloss.Center)
 )
 
 type itemKind int
@@ -239,7 +235,7 @@ func (m ConfigModel) View() string {
 
 	w := cardWidth
 
-	title := cfgTitleStyle.Width(w).Render("mainichi — config")
+	title := cfgTitleStyle.Width(cardWidth).Render("mainichi — config")
 
 	var lines []string
 
@@ -269,7 +265,7 @@ func (m ConfigModel) View() string {
 	menu := lipgloss.JoinVertical(lipgloss.Left, lines...)
 	centeredMenu := lipgloss.NewStyle().Width(w).Align(lipgloss.Center).Render(menu)
 
-	help := screenHelpStyle.Width(w).Render("←/→ change • enter save • esc back • ctrl+c quit")
+	help := cfgHelpStyle.Width(w).Render("←/→ change • enter save • esc back • ctrl+c quit")
 
 	block := lipgloss.JoinVertical(lipgloss.Center,
 		title, "", centeredMenu, "", help,
