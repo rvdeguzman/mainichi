@@ -107,7 +107,7 @@ func (s *Session) SetStoicPrompt(headingsJSON string) {
 }
 
 // ApplyPromptSource assigns a prompt from the configured source.
-func (s *Session) ApplyPromptSource(source, defaultPrompts, stoicHeadings, apiKey string) error {
+func (s *Session) ApplyPromptSource(source, defaultPrompts, stoicHeadings string) error {
 	if s.Entry.Prompt != "" {
 		return nil
 	}
@@ -115,16 +115,6 @@ func (s *Session) ApplyPromptSource(source, defaultPrompts, stoicHeadings, apiKe
 	switch source {
 	case "stoic":
 		s.SetStoicPrompt(stoicHeadings)
-		return nil
-	case "ai":
-		if apiKey == "" {
-			return fmt.Errorf("OPENAI_API_KEY not set")
-		}
-		prompt, err := adapters.GeneratePrompt(apiKey)
-		if err != nil {
-			return err
-		}
-		s.Entry.Prompt = prompt
 		return nil
 	default:
 		return s.DrawPrompt(defaultPrompts)

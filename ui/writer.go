@@ -5,7 +5,6 @@ import (
 	"mainichi/app"
 	"mainichi/core"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -47,7 +46,6 @@ func promptSubCommands(hasPrompt bool) []paletteCommand {
 	cmds = append(cmds,
 		paletteCommand{"stoic", promptSourceDescription("stoic"), "prompt-stoic"},
 		paletteCommand{"deck", promptSourceDescription("deck"), "prompt-deck"},
-		paletteCommand{"ai", promptSourceDescription("ai"), "prompt-ai"},
 	)
 	return cmds
 }
@@ -72,10 +70,6 @@ var (
 	helpBoxStyle = borderStyle.Padding(1, 2)
 )
 
-var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-type promptTickMsg time.Time
-
 type WriterModel struct {
 	session          *app.Session
 	textarea         textarea.Model
@@ -87,8 +81,6 @@ type WriterModel struct {
 	paletteFiltered  []paletteCommand
 	paletteSearching bool
 	paletteSubmenu   bool // true when in prompt submenu
-	loadingPrompt    bool
-	spinnerFrame     int
 	promptInput      textinput.Model
 	status           string
 }
@@ -148,18 +140,8 @@ func (m *WriterModel) save() error {
 	return nil
 }
 
-func promptTick() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
-		return promptTickMsg(t)
-	})
-}
-
 func (m WriterModel) Init() tea.Cmd {
-	cmds := []tea.Cmd{textarea.Blink}
-	if m.loadingPrompt {
-		cmds = append(cmds, promptTick())
-	}
-	return tea.Batch(cmds...)
+	return textarea.Blink
 }
 
 func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -167,12 +149,6 @@ func (m WriterModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		return m, nil
-	case promptTickMsg:
-		if m.loadingPrompt {
-			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
-			return m, promptTick()
-		}
 		return m, nil
 	}
 
@@ -295,13 +271,10 @@ func (m WriterModel) updatePalette(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.promptInput.SetValue(m.session.Entry.Prompt)
 					m.promptInput.Focus()
 					return m, textinput.Blink
-				case "prompt-deck", "prompt-ai", "prompt-stoic":
-					// Clear existing prompt so regeneration works
+				case "prompt-deck", "prompt-stoic":
+					// Clear the existing prompt before selecting another source.
 					m.session.Entry.Prompt = ""
 					action := strings.TrimPrefix(selected.action, "prompt-")
-					if action == "ai" {
-						m.loadingPrompt = true
-					}
 					m.mode = modeNormal
 					m.textarea.Focus()
 					return m, func() tea.Msg { return promptActionMsg{action: action} }
@@ -448,10 +421,7 @@ func (m WriterModel) viewWriter() string {
 
 	// Prompt (optional)
 	var promptLine string
-	if m.loadingPrompt && m.session.Entry.Prompt == "" {
-		frame := spinnerFrames[m.spinnerFrame%len(spinnerFrames)]
-		promptLine = promptStyle.Width(cardWidth).Render(frame + " generating prompt…")
-	} else if m.session.Entry.Prompt != "" {
+	if m.session.Entry.Prompt != "" {
 		promptLine = promptStyle.Width(cardWidth).Render(
 			m.session.Entry.Prompt,
 		)

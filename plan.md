@@ -45,7 +45,7 @@ Presence matters more than performance.
 
 - `core/` — journaling logic, prompt deck logic, minimum/progress logic
 - `app/` — application services (open entry, save entry, draw prompt)
-- `adapters/` — filesystem implementation, optional OpenAI client
+- `adapters/` — filesystem implementation
 - `ui/` — Bubble Tea models and rendering logic
 - `cmd/mainichi/` — CLI entrypoint and wiring
 
@@ -205,26 +205,12 @@ save entry → mark used
 deck empty → reshuffle
 ```
 
-### AI Prompts (Optional)
-
-- Triggered via `mainichi ai` (deprecated); `mainichi --ai` is supported as an alias.
-- Generated once per session.
-- Not added to deck.
-- No regeneration loop.
-- No writing analysis.
-- No personalization feedback.
-
-AI prompts are suggestions only.
-
----
-
 ## CLI Interface
 
 ```
 mainichi              # open today's entry
 mainichi prompt       # open with the configured prompt source (stoic by default)
-mainichi ai           # open with an AI prompt (deprecated)
-mainichi --ai         # same as mainichi ai
+mainichi stoic        # open with the Daily Stoic heading
 mainichi date         # open calendar view
 mainichi YYYY-MM-DD   # open specific date
 ```

@@ -15,8 +15,6 @@ go install ./cmd/mainichi
 ```
 mainichi                # open today's entry
 mainichi prompt         # open today with the configured prompt source (stoic by default)
-mainichi ai             # open today with an AI-generated writing prompt (deprecated)
-mainichi --ai           # same as mainichi ai
 mainichi stoic          # open today with the Daily Stoic heading
 mainichi config         # settings
 mainichi date           # calendar view
@@ -39,7 +37,6 @@ In the command palette, use `j`/`k` or arrows to navigate and `enter` to select.
 | Variable | Description |
 |---|---|
 | `MAINICHI_DIR` | Custom data directory (default: `~/.mainichi`) |
-| `OPENAI_API_KEY` | Required for deprecated `mainichi ai`, `mainichi --ai`, and `prompt_source = "ai"` |
 
 To sync entries via iCloud, add to your `.zshrc`:
 

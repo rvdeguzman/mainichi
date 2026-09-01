@@ -26,19 +26,17 @@ type configDoneMsg struct {
 }
 
 type promptReadyMsg struct {
-	action string
-	err    error
+	err error
 }
 
 type promptActionMsg struct {
-	action string // "deck", "ai", "stoic"
+	action string // "deck" or "stoic"
 }
 
-func promptSourceCmd(session *app.Session, source, defaultPrompts, stoicHeadings, apiKey string) tea.Cmd {
+func promptSourceCmd(session *app.Session, source, defaultPrompts, stoicHeadings string) tea.Cmd {
 	return func() tea.Msg {
 		return promptReadyMsg{
-			action: source,
-			err:    session.ApplyPromptSource(source, defaultPrompts, stoicHeadings, apiKey),
+			err: session.ApplyPromptSource(source, defaultPrompts, stoicHeadings),
 		}
 	}
 }
@@ -53,18 +51,16 @@ type AppModel struct {
 	config              ConfigModel
 	width               int
 	height              int
-	aiPromptAPIKey      string
 	defaultPrompts      string
 	stoicHeadings       string
 	initialPromptSource string
 }
 
-func NewAppModel(store adapters.Store, session *app.Session, initialView int, initialPromptSource string, aiPromptAPIKey string, defaultPrompts string, stoicHeadings string) AppModel {
+func NewAppModel(store adapters.Store, session *app.Session, initialView int, initialPromptSource string, defaultPrompts string, stoicHeadings string) AppModel {
 	m := AppModel{
 		store:               store,
 		session:             session,
 		view:                initialView,
-		aiPromptAPIKey:      aiPromptAPIKey,
 		defaultPrompts:      defaultPrompts,
 		stoicHeadings:       stoicHeadings,
 		initialPromptSource: initialPromptSource,
@@ -72,9 +68,6 @@ func NewAppModel(store adapters.Store, session *app.Session, initialView int, in
 	switch initialView {
 	case ViewWriter:
 		m.writer = NewWriterModel(session)
-		if initialPromptSource == "ai" {
-			m.writer.loadingPrompt = true
-		}
 	case ViewCalendar:
 		m.calendar = NewCalendarModel(session)
 	case ViewRecent:
@@ -90,7 +83,7 @@ func (m AppModel) Init() tea.Cmd {
 	case ViewWriter:
 		cmds := []tea.Cmd{m.writer.Init()}
 		if m.initialPromptSource != "" {
-			cmds = append(cmds, promptSourceCmd(m.session, m.initialPromptSource, m.defaultPrompts, m.stoicHeadings, m.aiPromptAPIKey))
+			cmds = append(cmds, promptSourceCmd(m.session, m.initialPromptSource, m.defaultPrompts, m.stoicHeadings))
 		}
 		return tea.Batch(cmds...)
 	case ViewCalendar:
@@ -135,18 +128,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case promptReadyMsg:
 		if msg.err != nil {
-			m.writer.setStatus("couldn't generate prompt")
+			m.writer.setStatus("couldn't load prompt")
 		} else if err := m.writer.save(); err != nil {
 			m.writer.setStatus(saveStatus(err))
 		}
-		m.writer.loadingPrompt = false
 		return m, nil
 
 	case promptActionMsg:
-		if msg.action == "ai" {
-			m.writer.loadingPrompt = true
-		}
-		return m, promptSourceCmd(m.session, msg.action, m.defaultPrompts, m.stoicHeadings, m.aiPromptAPIKey)
+		return m, promptSourceCmd(m.session, msg.action, m.defaultPrompts, m.stoicHeadings)
 
 	default:
 		return m.updateChild(msg)

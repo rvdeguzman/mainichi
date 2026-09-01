@@ -36,47 +36,23 @@ func main() {
 
 	cmd := ""
 	if len(os.Args) > 1 {
-		cmd = normalizeCommand(os.Args[1])
+		cmd = os.Args[1]
 	}
 
 	var initialView int
 	initialPromptSource := ""
-	aiPromptAPIKey := os.Getenv("OPENAI_API_KEY")
 
 	switch {
 	case cmd == "":
 		session.OpenToday()
 		if cfg.AutoPrompt {
-			initialPromptSource = cfg.PromptSource
-			if initialPromptSource == "" {
-				initialPromptSource = "stoic"
-			}
-			if initialPromptSource == "ai" && aiPromptAPIKey == "" {
-				fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set; using stoic prompt instead\n")
-				initialPromptSource = "stoic"
-			}
+			initialPromptSource = supportedPromptSource(cfg.PromptSource)
 		}
 		initialView = ui.ViewWriter
 
 	case cmd == "prompt":
 		session.OpenToday()
-		initialPromptSource = cfg.PromptSource
-		if initialPromptSource == "" {
-			initialPromptSource = "stoic"
-		}
-		if initialPromptSource == "ai" && aiPromptAPIKey == "" {
-			fmt.Fprintf(os.Stderr, "warning: OPENAI_API_KEY not set; using stoic prompt instead\n")
-			initialPromptSource = "stoic"
-		}
-		initialView = ui.ViewWriter
-
-	case cmd == "ai":
-		if aiPromptAPIKey == "" {
-			fmt.Fprintf(os.Stderr, "error: OPENAI_API_KEY not set\n")
-			os.Exit(1)
-		}
-		session.OpenToday()
-		initialPromptSource = "ai"
+		initialPromptSource = supportedPromptSource(cfg.PromptSource)
 		initialView = ui.ViewWriter
 
 	case cmd == "stoic":
@@ -104,18 +80,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	model := ui.NewAppModel(store, session, initialView, initialPromptSource, aiPromptAPIKey, mainichi.DefaultPrompts, mainichi.StoicHeadings)
+	model := ui.NewAppModel(store, session, initialView, initialPromptSource, mainichi.DefaultPrompts, mainichi.StoicHeadings)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func normalizeCommand(cmd string) string {
-	if cmd == "--ai" {
-		return "ai"
+func supportedPromptSource(source string) string {
+	if source == "deck" {
+		return source
 	}
-	return cmd
+	return "stoic"
 }
 
 func printUsage(w io.Writer) {
@@ -123,7 +99,6 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "Commands:\n")
 	fmt.Fprintf(w, "  (none)        Open today's entry\n")
 	fmt.Fprintf(w, "  prompt        Open today with the configured prompt source (stoic by default)\n")
-	fmt.Fprintf(w, "  ai, --ai      Open today with an AI-generated prompt (deprecated)\n")
 	fmt.Fprintf(w, "  stoic         Open today with the Daily Stoic heading\n")
 	fmt.Fprintf(w, "  config        Configure writing settings\n")
 	fmt.Fprintf(w, "  date          Open calendar view\n")

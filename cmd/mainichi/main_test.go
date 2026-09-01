@@ -5,26 +5,29 @@ import (
 	"testing"
 )
 
-func TestNormalizeCommandSupportsAIAliases(t *testing.T) {
+func TestSupportedPromptSource(t *testing.T) {
 	tests := map[string]string{
-		"ai":     "ai",
-		"--ai":   "ai",
-		"prompt": "prompt",
+		"deck":    "deck",
+		"stoic":   "stoic",
+		"":        "stoic",
+		"unknown": "stoic",
 	}
 
 	for input, want := range tests {
-		if got := normalizeCommand(input); got != want {
-			t.Fatalf("normalizeCommand(%q) = %q, want %q", input, got, want)
+		if got := supportedPromptSource(input); got != want {
+			t.Fatalf("supportedPromptSource(%q) = %q, want %q", input, got, want)
 		}
 	}
 }
 
-func TestUsageDocumentsAIAliases(t *testing.T) {
+func TestUsageDocumentsCommands(t *testing.T) {
 	var b strings.Builder
 	printUsage(&b)
 
 	got := b.String()
-	if !strings.Contains(got, "ai, --ai") {
-		t.Fatalf("usage = %q, want AI command aliases", got)
+	for _, command := range []string{"prompt", "stoic", "config", "date", "recent", "YYYY-MM-DD"} {
+		if !strings.Contains(got, command) {
+			t.Fatalf("usage = %q, want command %q", got, command)
+		}
 	}
 }
